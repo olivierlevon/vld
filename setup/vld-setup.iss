@@ -25,13 +25,13 @@ LicenseFile=license-free.txt
 OutputBaseFilename=vld-{#MyAppVersion}-setup
 Compression=lzma
 SolidCompression=True
-MinVersion=0,6.00
+MinVersion=0,6.01
 ; Tell Windows Explorer to reload the environment
 ChangesEnvironment=yes
 AllowNoIcons=yes
 DisableDirPage=auto
 DirExistsWarning=no
-WizardImageFile=compiler:WizModernImage-IS.bmp
+WizardImageFile=compiler:WizClassicImage-IS.bmp
 WizardSmallImageFile=WizSmallImage.bmp
 
 [Languages]
@@ -45,12 +45,12 @@ Source: "dbghelp\x64\dbghelp.dll"; DestDir: "{app}\bin\Win64"; Flags: ignorevers
 Source: "dbghelp\x64\Microsoft.Windows.DebuggersAndTools.manifest"; DestDir: "{app}\bin\Win64"; Flags: ignoreversion
 Source: "dbghelp\x86\dbghelp.dll"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
 Source: "dbghelp\x86\Microsoft.Windows.DebuggersAndTools.manifest"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
-Source: "..\src\bin\Win32\Release-v141\vld.lib"; DestDir: "{app}\lib\Win32"; Flags: ignoreversion
-Source: "..\src\bin\Win32\Release-v141\vld_x86.dll"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
-Source: "..\src\bin\Win32\Release-v141\vld_x86.pdb"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
-Source: "..\src\bin\x64\Release-v141\vld.lib"; DestDir: "{app}\lib\Win64"; Flags: ignoreversion
-Source: "..\src\bin\x64\Release-v141\vld_x64.dll"; DestDir: "{app}\bin\Win64"; Flags: ignoreversion
-Source: "..\src\bin\x64\Release-v141\vld_x64.pdb"; DestDir: "{app}\bin\Win64"; Flags: ignoreversion
+Source: "..\src\bin\Win32\Release-v143\vld.lib"; DestDir: "{app}\lib\Win32"; Flags: ignoreversion
+Source: "..\src\bin\Win32\Release-v143\vld_x86.dll"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
+Source: "..\src\bin\Win32\Release-v143\vld_x86.pdb"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
+Source: "..\src\bin\x64\Release-v143\vld.lib"; DestDir: "{app}\lib\Win64"; Flags: ignoreversion
+Source: "..\src\bin\x64\Release-v143\vld_x64.dll"; DestDir: "{app}\bin\Win64"; Flags: ignoreversion
+Source: "..\src\bin\x64\Release-v143\vld_x64.pdb"; DestDir: "{app}\bin\Win64"; Flags: ignoreversion
 Source: "..\src\vld.h"; DestDir: "{app}\include"; Flags: ignoreversion
 Source: "..\src\vld_def.h"; DestDir: "{app}\include"; Flags: ignoreversion
 Source: "..\vld.ini"; DestDir: "{app}"; Flags: ignoreversion
@@ -60,8 +60,7 @@ Source: "..\COPYING.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Tasks]
 Name: "modifypath"; Description: "Add VLD directory to your environmental path"
-Name: "modifyVS2008Props"; Description: "Add VLD directory to VS 2008"
-Name: "modifyVS2010Props"; Description: "Add VLD directory to VS 2010 - VS 2017"
+Name: "modifyVSProps"; Description: "Add VLD directory to VS 2019 - VS 2026"
 
 [ThirdParty]
 UseRelativePaths=True
@@ -78,15 +77,6 @@ Root: "HKLM64"; Subkey: "{#MyAppRegKey}"; ValueType: string; ValueName: "Install
 Root: "HKLM64"; Subkey: "{#MyAppRegKey}"; ValueType: string; ValueName: "IniFile"; ValueData: "{app}\vld.ini"; Check: IsWin64 
 
 [Code]
-type
-  TKey = string;
-  TValue = string;
-  TKeyValue = record
-    Key: TKey;
-    Value: TValue;
-  end;
-  TKeyValueList = array of TKeyValue;
-
 const
     ModPathName = 'modifypath';
     ModPathType = 'system';
@@ -143,151 +133,6 @@ begin
   else if (isUnInstallString <> '') then
   begin
     Result := UninstallOldVersion(isUnInstallString, '/SILENT /NORESTART /SUPPRESSMSGBOXES');
-  end;
-end;
-
-function Count(What, Where: String): Integer;
-begin
-  Result := 0;
-  if Length(What) = 0 then
-    exit;
-  while Pos(What,Where)>0 do
-  begin
-    Where := Copy(Where,Pos(What,Where)+Length(What),Length(Where));
-    Result := Result + 1;
-  end;
-end;
-
-procedure Explode(var ADest: TKeyValueList; aText, aSeparator: String);
-var tmp: Integer;
-  item: TKeyValue;
-begin
-  SetArrayLength(ADest, (Count(aSeparator,aText) / 2) + 1);
-  tmp := 0;
-  repeat
-    item.Key := '';
-    item.Value := '';
-    if Pos(aSeparator,aText)>0 then
-    begin
-      item.Key := Copy(aText,1,Pos(aSeparator,aText)-1);
-      aText := Copy(aText,Pos(aSeparator,aText)+Length(aSeparator),Length(aText));
-    end else
-    begin
-      item.Key := aText;
-      aText := '';
-    end;
-    if Pos(aSeparator,aText)>0 then
-    begin
-      item.Value := Copy(aText,1,Pos(aSeparator,aText)-1);
-      aText := Copy(aText,Pos(aSeparator,aText)+Length(aSeparator),Length(aText));
-    end else
-    begin
-      item.Value := aText;
-      aText := '';
-    end;
-    ADest[tmp] := item;
-    tmp := tmp + 1;
-  until Length(aText)=0;
-end;
-
-function Merge(ADest: TKeyValueList; aSeparator: String): String;
-var i, n, l: Integer;
-  str: String;
-begin
-  n := GetArrayLength(ADest);
-  l := n + (n - 1);
-  if l < 0 then l := 0;
-  Result := '';
-  for i := 0 to n - 1 do
-  begin
-    str := ADest[i].Key + aSeparator + ADest[i].Value;
-    Result := Result + str;
-    if i < n - 1 then Result := Result + aSeparator;
-  end;
-end;
-
-function UpdatePath(dirList: String; path: String): String;
-begin
-  if dirList = '' then
-    Result := path
-  else if Pos(path, dirList) = 0 then
-    Result := path + ';' + dirList
-  else
-    Result := dirList;
-end;
-
-procedure UpdatePaths(var dirList: string; path32: string; path64: string);
-var map: TKeyValueList;
-  i: Integer;
-begin
-  Explode(map, dirList, '|');
-  for i := 0 to GetArrayLength(map) - 1 do
-  begin
-    if map[i].Key = 'Win32' then map[i].Value := UpdatePath(map[i].Value, path32)
-    else if map[i].Key = 'x64' then map[i].Value := UpdatePath(map[i].Value, path64);
-  end;
-  dirList := Merge(map, '|');
-  Log(dirList);
-end;
-
-procedure ModifySettings(filename: string);
-var
-  XMLDocument: Variant;
-  XMLParent, XMLNode, XMLNodes: Variant;
-  IncludeDirectoriesNode: Variant;
-  AdditionalIncludeDirectories: string;
-  LibraryDirectoriesNode: Variant;
-  AdditionalLibraryDirectories: string;
-  libfolder: string;
-begin
-  XMLDocument := CreateOleObject('Msxml2.DOMDocument.3.0');
-  try
-    XMLDocument.async := False;
-    XMLDocument.load(filename);
-    if (XMLDocument.parseError.errorCode = 0) then
-    begin
-      XMLDocument.setProperty('SelectionLanguage', 'XPath');
-      XMLNodes := XMLDocument.SelectNodes('//UserSettings/ToolsOptions/ToolsOptionsCategory[@name="Projects"]/ToolsOptionsSubCategory[@name="VCDirectories"]');
-      if XMLNodes.Length = 0 then
-        Exit;
-      XMLParent := XMLNodes.Item[0];
-      XMLNodes := XMLParent.SelectNodes('//PropertyValue[@name="LibraryDirectories"]');
-      if XMLNodes.Length > 0 then
-        LibraryDirectoriesNode := XMLNodes.Item[0];
-      XMLNodes := XMLParent.SelectNodes('//PropertyValue[@name="IncludeDirectories"]');
-      if XMLNodes.Length > 0 then
-        IncludeDirectoriesNode := XMLNodes.Item[0];
-      AdditionalIncludeDirectories := '';
-      if not VarIsNull(IncludeDirectoriesNode) then
-        AdditionalIncludeDirectories := IncludeDirectoriesNode.Text;
-      AdditionalLibraryDirectories := '';
-      if not VarIsNull(LibraryDirectoriesNode) then
-        AdditionalLibraryDirectories := LibraryDirectoriesNode.Text;
-      UpdatePaths(AdditionalIncludeDirectories, ExpandConstant('{app}\include'), ExpandConstant('{app}\include'));
-      UpdatePaths(AdditionalLibraryDirectories, ExpandConstant('{app}\lib\Win32'), ExpandConstant('{app}\lib\Win64'));
-      IncludeDirectoriesNode.Text := AdditionalIncludeDirectories;
-      LibraryDirectoriesNode.Text := AdditionalLibraryDirectories;
-      XMLDocument.save(filename);
-    end;
-  except
-    ShowExceptionMessage;
-  end;
-end;
-
-procedure ModifyVS2008Settings();
-var
-  Path, CurSettings: string;
-begin
-  if RegQueryStringValue(HKEY_CURRENT_USER, 'Software\Microsoft\VisualStudio\9.0',
-     'VisualStudioLocation', Path) then
-  begin
-    StringChangeEx(Path, '%USERPROFILE%', GetEnv('USERPROFILE'), True);
-    if RegQueryStringValue(HKEY_CURRENT_USER, 'Software\Microsoft\VisualStudio\9.0\Profile',
-       'AutoSaveFile', CurSettings) then
-    begin
-      StringChangeEx(CurSettings, '%vsspv_visualstudio_dir%', Path, True);
-      ModifySettings(CurSettings);
-    end;
   end;
 end;
 
@@ -439,9 +284,7 @@ begin
   begin
     if not UninstallOldVersions() then
       Abort();
-    if IsTaskSelected('modifyVS2008Props') then
-      ModifyVS2008Settings();
-    if IsTaskSelected('modifyVS2010Props') then
+    if IsTaskSelected('modifyVSProps') then
       ModifyAllProps();
   end;
   CurStepChangedModPath(CurStep);

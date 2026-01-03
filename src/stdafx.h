@@ -3,12 +3,10 @@
 #include <cassert>
 #include <cerrno>
 #include <cstdio>
-#include <windows.h>
 #include <winsock2.h>
-#pragma comment(lib, "ws2_32.lib")  
-#if _WIN32_WINNT < 0x0600 // Windows XP or earlier, no GetProcessIdOfThread()
+#include <windows.h>
+#pragma comment(lib, "ws2_32.lib")
 #include <winternl.h>
-#endif
 #ifndef __out_xcount
 #define __out_xcount(x) // Workaround for the specstrings.h bug in the Platform SDK.
 #endif

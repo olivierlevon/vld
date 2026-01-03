@@ -70,15 +70,7 @@ TEST(TestUnloadDlls, Sequence2)
     EXPECT_EQ(2, x);
     ::FreeLibrary(hModule4);    // vld is *not* unloaded here
     int y = VLDGetLeaksCount();
-#if _MSC_VER <= 1600 && !defined(_DLL) // VS 2010 and bellow
-    // The reason for reporting 1 leak at this point is that the vld_dll1 module build with <VS2013 calls internally
-    // HeapDestroy when it unloads and the leak is either
-    // - reported automatically by VLD when the Heap is destroyed if VLD_OPT_SKIP_HEAPFREE_LEAKS was specified or
-    // - ignored since the destroyed Heap was removed from VLD heap map.
-    EXPECT_EQ(1, y); // vld is still loaded and counts 1 memory leaks
-#else
     EXPECT_EQ(2, y); // vld is still loaded and counts 2 memory leaks
-#endif
     ::FreeLibrary(hModule3);    // vld is unloaded here and reports 2 memory leaks
     int z = VLDGetLeaksCount(); // vld is unloaded and cannot count any memory leaks
     EXPECT_EQ(-1, z);
@@ -95,15 +87,7 @@ TEST(TestUnloadDlls, Sequence3)
     EXPECT_EQ(2, x);
     ::FreeLibrary(hModule5);    // vld is *not* unloaded here
     int y = VLDGetLeaksCount(); // vld is still loaded and counts 2 memory leaks
-#if _MSC_VER <= 1600 && !defined(_DLL) // VS 2010 and bellow
-    // The reason for reporting 1 leak at this point is that the vld_dll1 module build with <VS2013 calls internally
-    // HeapDestroy when it unloads and the leak is either
-    // - reported automatically by VLD when the Heap is destroyed if VLD_OPT_SKIP_HEAPFREE_LEAKS was specified or
-    // - ignored since the destroyed Heap was removed from VLD heap map.
-    EXPECT_EQ(1, y); // vld is still loaded and counts 1 memory leaks
-#else
     EXPECT_EQ(2, y); // vld is still loaded and counts 2 memory leaks
-#endif
     ::FreeLibrary(hModule6);    // vld is unloaded here and reports 2 memory leaks
     int z = VLDGetLeaksCount(); // vld is unloaded and cannot count any memory leaks
     EXPECT_EQ(-1, z);

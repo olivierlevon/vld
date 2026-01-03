@@ -50,53 +50,18 @@ enum action_e {
 };
 
 // Name of the debug C Runtime Library DLL on this system
+// VS 2015+ uses Universal CRT (ucrt)
 #ifdef _DEBUG
-#if _MSC_VER == 1400	// VS 2005
-#ifdef _DLL
-#define CRTDLLNAME   _T("msvcr80d.dll")
-#else
-#define CRTDLLNAME   _T("msvcrt.dll")
-#endif
-#elif _MSC_VER == 1500	// VS 2008
-#ifdef _DLL
-#define CRTDLLNAME   _T("msvcr90d.dll")
-#else
-#define CRTDLLNAME   _T("msvcrt.dll")
-#endif
-#elif _MSC_VER == 1600	// VS 2010
-#define CRTDLLNAME   _T("msvcr100d.dll")
-#elif _MSC_VER == 1700	// VS 2012
-#define CRTDLLNAME   _T("msvcr110d.dll")
-#elif _MSC_VER == 1800	// VS 2013
-#define CRTDLLNAME   _T("msvcr120d.dll")
-#elif _MSC_VER == 1900	// VS 2015
+#if _MSC_VER >= 1920    // VS 2019+
 #define CRTDLLNAME   _T("ucrtbased.dll")
 #else
-#error Unsupported compiler
+#error Unsupported compiler - requires VS 2019 or later
 #endif
 #else
-#if _MSC_VER == 1400	// VS 2005
-#ifdef _DLL
-#define CRTDLLNAME   _T("msvcr80.dll")
-#else
-#define CRTDLLNAME   _T("msvcrt.dll")
-#endif
-#elif _MSC_VER == 1500	// VS 2008
-#ifdef _DLL
-#define CRTDLLNAME   _T("msvcr90.dll")
-#else
-#define CRTDLLNAME   _T("msvcrt.dll")
-#endif
-#elif _MSC_VER == 1600	// VS 2010
-#define CRTDLLNAME   _T("msvcr100.dll")
-#elif _MSC_VER == 1700	// VS 2012
-#define CRTDLLNAME   _T("msvcr110.dll")
-#elif _MSC_VER == 1800	// VS 2013
-#define CRTDLLNAME   _T("msvcr120.dll")
-#elif _MSC_VER == 1900	// VS 2015
+#if _MSC_VER >= 1920    // VS 2019+
 #define CRTDLLNAME   _T("ucrtbase.dll")
 #else
-#error Unsupported compiler
+#error Unsupported compiler - requires VS 2019 or later
 #endif
 #endif
 
