@@ -4,16 +4,33 @@ TITLE Building VLD...
 
 SETLOCAL ENABLEDELAYEDEXPANSION
 
-REM Check if the needed files are present
-IF "%VS150COMNTOOLS%"=="" GOTO :BadPaths
-
 CD %~dp0/..
+
+REM Find Visual Studio using vswhere (minimum VS 2019 = version 16.0)
+SET "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+IF NOT EXIST "%VSWHERE%" (
+    ECHO vswhere.exe not found. Visual Studio 2019 or later must be installed.
+    PAUSE
+    GOTO :EOF
+)
+
+REM Find latest VS installation (minimum 2019)
+SET "VSINSTALLPATH="
+"%VSWHERE%" -latest -requires Microsoft.Component.MSBuild -property installationPath > "%TEMP%\vspath.tmp"
+SET /p VSINSTALLPATH=<"%TEMP%\vspath.tmp"
+DEL "%TEMP%\vspath.tmp" 2>nul
+
+IF "%VSINSTALLPATH%"=="" GOTO :BadPaths
+
+REM Check for VsDevCmd.bat
+SET "VSDEVCMD=%VSINSTALLPATH%\Common7\Tools\VsDevCmd.bat"
+IF NOT EXIST "%VSDEVCMD%" GOTO :BadPaths
 
 GOTO :GoodPaths
 
 :BadPaths
 ECHO: "Not all build dependencies found. To build VLD you need:"
-ECHO: "* Visual Studio 2017 installed"
+ECHO: "* Visual Studio 2019, 2022, or 2026 installed"
 PAUSE
 GOTO :EndGood
 
@@ -23,10 +40,9 @@ IF /i "%PROCESSOR_ARCHITECTURE%" == "AMD64" SET ProgFiles=%ProgramFiles(x86)%
 
 SET BUILDTYPE=/%1
 IF "%1"=="" SET BUILDTYPE=/rebuild
-rem IF "%1"=="build" SET BUILDTYPE=
 
 SET ORIGPATH="%CD%"
-CALL "%VS150COMNTOOLS%vsvars32.bat"
+CALL "%VSDEVCMD%"
 CD %ORIGPATH%
 
 :: Store start time
@@ -36,17 +52,24 @@ FOR /f "tokens=1-4 delims=:.," %%T IN ("%TIME%") DO (
 	SET /a Start100S=%%T*360000+1%%U*6000+1%%V*100+1%%W - 610100
 )
 
-devenv /nologo vld_vs15.sln %BUILDTYPE% "Release|Win32" /Project vld
+devenv /nologo vld.sln %BUILDTYPE% "Release|Win32" /Project vld
 IF %ERRORLEVEL% NEQ 0 GOTO EndBad
-devenv /nologo vld_vs15.sln %BUILDTYPE% "Release|x64" /Project vld
+devenv /nologo vld.sln %BUILDTYPE% "Release|x64" /Project vld
 IF %ERRORLEVEL% NEQ 0 GOTO EndBad
 
-if not exist "%ProgFiles%\Inno Setup 5\ISCC.exe" GOTO EndBad
-"%ProgFiles%\Inno Setup 5\ISCC.exe" setup\vld-setup.iss
+REM Try Inno Setup 6 first, then fall back to Inno Setup 5
+SET "ISCC="
+IF EXIST "%ProgFiles%\Inno Setup 6\ISCC.exe" SET "ISCC=%ProgFiles%\Inno Setup 6\ISCC.exe"
+IF "%ISCC%"=="" IF EXIST "%ProgFiles%\Inno Setup 5\ISCC.exe" SET "ISCC=%ProgFiles%\Inno Setup 5\ISCC.exe"
+IF "%ISCC%"=="" (
+    ECHO Inno Setup not found. Please install Inno Setup 5 or 6.
+    GOTO EndBad
+)
+"%ISCC%" setup\vld-setup.iss
 IF %ERRORLEVEL% NEQ 0 GOTO EndBad
 CD setup
 
-ECHO 
+ECHO
 
 :: Retrieve Stop time
 FOR /f "tokens=1-4 delims=:.," %%T IN ("%TIME%") DO (

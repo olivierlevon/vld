@@ -2,15 +2,16 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Visual Leak Detector"
-#define MyAppVersion "2.5.2"
+#define MyAppVersion "2.6.0"
 #define MyAppPublisher "VLD Team"
-#define MyAppURL "https://kinddragon.github.io/vld/"
+#define MyAppURL "https://github.com/olivierlevon/vld"
 #define MyAppRegKey "Software\Visual Leak Detector"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
 ; Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
+ArchitecturesInstallIn64BitMode=x64compatible
 AppId={{851FBFF7-5148-40A2-A654-942BE80F5B90}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -19,13 +20,13 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={reg:HKLM\{#MyAppRegKey},InstallPath|{pf}\{#MyAppName}}
+DefaultDirName={reg:HKLM\{#MyAppRegKey},InstallPath|{commonpf}\{#MyAppName}}
 DefaultGroupName={#MyAppName}
 LicenseFile=license-free.txt
 OutputBaseFilename=vld-{#MyAppVersion}-setup
 Compression=lzma
 SolidCompression=True
-MinVersion=0,6.01
+MinVersion=0,6.1sp1
 ; Tell Windows Explorer to reload the environment
 ChangesEnvironment=yes
 AllowNoIcons=yes
@@ -284,7 +285,7 @@ begin
   begin
     if not UninstallOldVersions() then
       Abort();
-    if IsTaskSelected('modifyVSProps') then
+    if WizardIsTaskSelected('modifyVSProps') then
       ModifyAllProps();
   end;
   CurStepChangedModPath(CurStep);
