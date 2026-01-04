@@ -22,6 +22,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
+
+#ifndef VLDBUILD
+#error \
+"This header should only be included by Visual Leak Detector when building it from source. \
+Applications should never include this header."
+#endif
+
 #include <memory>
 #include "vldheap.h"     // Provides internal new and delete operators.
 
@@ -48,13 +55,13 @@ public:
 
     void deallocate(pointer p, size_type /*n*/)
     {
-        return ::operator delete(p);
+        ::operator delete(p);
     }
 
-    vldallocator() throw() : std::allocator<T>() { }
-    vldallocator(const vldallocator &a) throw() : std::allocator<T>(a) { }
+    vldallocator() noexcept : std::allocator<T>() { }
+    vldallocator(const vldallocator &a) noexcept : std::allocator<T>(a) { }
     template<class Other>
-    vldallocator(const vldallocator<Other> &a) throw() : std::allocator<T>(a) { }
-    ~vldallocator() throw() { }
+    vldallocator(const vldallocator<Other> &a) noexcept : std::allocator<T>(a) { }
+    ~vldallocator() noexcept { }
 };
 #pragma pop_macro("new")

@@ -34,14 +34,14 @@
 #define VLD_OPT_SAFE_STACK_WALK         0x0010 //   If set, the stack is walked using the "safe" method (StackWalk64).
 #define VLD_OPT_SELF_TEST               0x0020 //   If set, perform a self-test to verify memory leak self-checking.
 #define VLD_OPT_SLOW_DEBUGGER_DUMP      0x0040 //   If set, inserts a slight delay between sending output to the debugger.
-#define VLD_OPT_START_DISABLED          0x0080 //   If set, memory leak detection will initially disabled.
+#define VLD_OPT_START_DISABLED          0x0080 //   If set, memory leak detection will initially be disabled.
 #define VLD_OPT_TRACE_INTERNAL_FRAMES   0x0100 //   If set, include useless frames (e.g. internal to VLD) in call stacks.
 #define VLD_OPT_UNICODE_REPORT          0x0200 //   If set, the leak report will be encoded UTF-16 instead of ASCII.
 #define VLD_OPT_VLDOFF                  0x0400 //   If set, VLD will be completely deactivated. It will not attach to any modules.
 #define VLD_OPT_REPORT_TO_STDOUT        0x0800 //   If set, the memory leak report is sent to stdout.
-#define VLD_OPT_SKIP_HEAPFREE_LEAKS     0x1000 //   If set, VLD skip HeapFree memory leaks.
+#define VLD_OPT_SKIP_HEAPFREE_LEAKS     0x1000 //   If set, VLD skips HeapFree memory leaks.
 #define VLD_OPT_VALIDATE_HEAPFREE       0x2000 //   If set, VLD verifies and reports heap consistency for HeapFree calls.
-#define VLD_OPT_SKIP_CRTSTARTUP_LEAKS   0x4000 //   If set, VLD skip crt srtartup memory leaks.
+#define VLD_OPT_SKIP_CRTSTARTUP_LEAKS   0x4000 //   If set, VLD skips CRT startup memory leaks.
 
 #define VLD_RPTHOOK_INSTALL  0
 #define VLD_RPTHOOK_REMOVE   1

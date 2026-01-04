@@ -85,7 +85,7 @@ public:
         //
         //  Return Value:
         //
-        //    Returns a const reference to the key in the Map referenced by the
+        //    Returns a const reference to the key in the Set referenced by the
         //    Iterator.
         //
         const Tk& operator * () const
@@ -94,10 +94,10 @@ public:
         }
 
         // operator ++ - Prefix increment operator for Set Iterators. Causes the
-        //   Iterator to reference the in-oder successor of the key currently
+        //   Iterator to reference the in-order successor of the key currently
         //   referenced by the Iterator. If the Iterator is currently
-        //   referencing the largest key in the Map, then the resulting Iterator
-        //   will reference the Set's end (the NULL pair).
+        //   referencing the largest key in the Set, then the resulting Iterator
+        //   will reference the Set's end (the NULL Iterator).
         //
         //  Note: Incrementing an Iterator which does not reference a valid
         //    key in the Set is undefined and will almost certainly cause a
@@ -106,29 +106,29 @@ public:
         //  Return Value:
         //
         //    Returns the Iterator after it has been incremented.
-        // 
-        Iterator& operator ++ (int)
+        //
+        Iterator& operator ++ ()
         {
             m_node = m_tree->next(m_node);
             return *this;
         }
 
-        // operator ++ - Postfix increment operator for Map Iterators. Causes
-        //   the Iterator to reference the in-order successor of the key/value
-        //   pair currently referenced by the Iterator. If the Iterator is
-        //   currently referencing the largest key/value pair in the Map, then
-        //   the resulting Iterator will reference the Map's end (the NULL
-        //   pair).
+        // operator ++ - Postfix increment operator for Set Iterators. Causes
+        //   the Iterator to reference the in-order successor of the key
+        //   currently referenced by the Iterator. If the Iterator is
+        //   currently referencing the largest key in the Set, then
+        //   the resulting Iterator will reference the Set's end (the NULL
+        //   Iterator).
         //
         //  Note: Incrementing an Iterator which does not reference a valid
-        //    key/value pair in the Map is undefined and will almost certainly
-        //    cause a crash.
+        //    key in the Set is undefined and will almost certainly cause a
+        //    crash.
         //
         //  Return Value:
         //
         //    Returns the Iterator before it has been incremented.
-        // 
-        Iterator operator ++ ()
+        //
+        Iterator operator ++ (int)
         {
             typename Tree<Tk>::node_t *cur = m_node;
 
@@ -162,7 +162,7 @@ public:
         }
 
         // operator == - Equality operator for Set Iterators. Set Iterators are
-        //   considered equal if and only if they both refernce the same
+        //   considered equal if and only if they both reference the same
         //   key in the same Set.
         //
         //  - other (IN): The other Set Iterator to compare against.
@@ -211,7 +211,7 @@ public:
         //   copy a Muterator from an existing Iterator, such that the Muterator
         //   references the same element referenced by the Iterator.
         Muterator& operator = (const Iterator& other) {
-            *(Iterator*)this = other;
+            static_cast<Iterator&>(*this) = other;
             return *this;
         }
 
@@ -223,7 +223,7 @@ public:
         //
         //  Return Value:
         //
-        //    Returns a reference to the key in the Map referenced by the
+        //    Returns a reference to the key in the Set referenced by the
         //    Muterator.
         //
         Tk& operator * ()
@@ -267,7 +267,7 @@ public:
     //
     //    None.
     //
-    VOID erase (Iterator& it)
+    VOID erase (const Iterator& it)
     {
         m_tree.erase(it.m_node);
     }

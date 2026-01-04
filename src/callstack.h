@@ -33,8 +33,8 @@
 #include "utility.h"
 
 #define CALLSTACK_CHUNK_SIZE    32	// Number of frame slots in each CallStack chunk.
-#define MAX_SYMBOL_NAME_LENGTH  256 // Maximum symbol name length that we will allow. Longer names will be truncated.
-#define MAX_SYMBOL_NAME_SIZE    ((MAX_SYMBOL_NAME_LENGTH * sizeof(WCHAR)) - 1)
+#define MAX_SYMBOL_NAME_LENGTH  256 // Maximum symbol name length (in characters) that we will allow. Longer names will be truncated.
+#define MAX_SYMBOL_NAME_SIZE    (MAX_SYMBOL_NAME_LENGTH * sizeof(WCHAR)) // Size in bytes for the symbol name buffer
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -99,11 +99,14 @@ public:
     VOID push_back (const UINT_PTR programcounter);
 
 protected:
-    // Protected data.
-    UINT32 m_status;                       // Status flags:
-#define CALLSTACK_STATUS_INCOMPLETE    0x1 //   If set, the stack trace stored in this CallStack appears to be incomplete.
-#define CALLSTACK_STATUS_STARTUPCRT    0x2 //   If set, the stack trace is startup CRT.
-#define CALLSTACK_STATUS_NOTSTARTUPCRT 0x4 //   If set, the stack trace is not startup CRT.
+    // Status flags for m_status
+    enum StatusFlags : UINT32 {
+        CALLSTACK_STATUS_NONE          = 0x0, // No flags set
+        CALLSTACK_STATUS_INCOMPLETE    = 0x1, // If set, the stack trace stored in this CallStack appears to be incomplete.
+        CALLSTACK_STATUS_STARTUPCRT    = 0x2, // If set, the stack trace is startup CRT.
+        CALLSTACK_STATUS_NOTSTARTUPCRT = 0x4  // If set, the stack trace is not startup CRT.
+    };
+    UINT32 m_status; // Status flags (combination of StatusFlags)
 
     // The chunk list is made of a linked list of Chunks.
     struct chunk_t {
@@ -114,7 +117,7 @@ protected:
     // Private data.
     UINT32              m_capacity; // Current capacity limit (in frames)
     UINT32              m_size;     // Current size (in frames)
-    CallStack::chunk_t  m_store;    // Pointer to the underlying data store (i.e. head of the chunk list)
+    CallStack::chunk_t  m_store;    // First chunk (embedded), head of the chunk list
     CallStack::chunk_t* m_topChunk; // Pointer to the chunk at the top of the stack
     UINT32              m_topIndex; // Index, within the top chunk, of the top of the stack
 
@@ -127,15 +130,14 @@ protected:
     bool isInternalModule( const PWSTR filename ) const;
     UINT isCrtStartupFunction( LPCWSTR functionName ) const;
     LPCWSTR getFunctionName(SIZE_T programCounter, DWORD64& displacement64,
-        SYMBOL_INFO* functionInfo, CriticalSectionLocker<DbgHelp>& locker) const;
+        SYMBOL_INFOW* functionInfo, CriticalSectionLocker<DbgHelp>& locker) const;
     DWORD resolveFunction(SIZE_T programCounter, IMAGEHLP_LINEW64* sourceInfo, DWORD displacement,
         LPCWSTR functionName, LPWSTR stack_line, DWORD stackLineSize) const;
 
 private:
-    // Don't allow this!!
-    CallStack(const CallStack &other);
-    // Don't allow this!!
-    CallStack& operator = (const CallStack &other);
+    // Non-copyable
+    CallStack(const CallStack &other) = delete;
+    CallStack& operator = (const CallStack &other) = delete;
 };
 
 
@@ -153,8 +155,8 @@ public:
         : m_hashValue(0)
     {
     }
-    virtual VOID getStackTrace (UINT32 maxdepth, const context_t& context);
-    virtual DWORD getHashValue() const
+    VOID getStackTrace (UINT32 maxdepth, const context_t& context) override;
+    DWORD getHashValue() const override
     {
         return m_hashValue;
     }
@@ -173,6 +175,6 @@ private:
 class SafeCallStack : public CallStack
 {
 public:
-    virtual VOID getStackTrace (UINT32 maxdepth, const context_t& context);
-    virtual DWORD getHashValue() const;
+    VOID getStackTrace (UINT32 maxdepth, const context_t& context) override;
+    DWORD getHashValue() const override;
 };

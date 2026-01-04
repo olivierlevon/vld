@@ -22,6 +22,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include <algorithm>
 #define VLDBUILD
 #include "callstack.h"  // This class' header.
 #include "utility.h"    // Provides various utility functions.
@@ -126,6 +127,10 @@ BOOL CallStack::operator == (const CallStack &other) const
     const CallStack::chunk_t *chunk = &m_store;
     const CallStack::chunk_t *otherChunk = &other.m_store;
     while (prevChunk != m_topChunk) {
+        if (otherChunk == NULL) {
+            // Other CallStack has fewer chunks than expected.
+            return FALSE;
+        }
         UINT32 size = (chunk == m_topChunk) ? m_topIndex : CALLSTACK_CHUNK_SIZE;
         for (UINT32 index = 0; index < size; index++) {
             if (chunk->frames[index] != otherChunk->frames[index]) {
@@ -156,16 +161,22 @@ BOOL CallStack::operator == (const CallStack &other) const
 //  Return Value:
 //
 //    Returns the program counter for the frame at the specified index. If the
-//    specified index is out of range for the CallStack, the return value is
-//    undefined.
+//    specified index is out of range for the CallStack, returns 0.
 //
 UINT_PTR CallStack::operator [] (UINT32 index) const
 {
+    if (index >= m_size) {
+        return 0;
+    }
+
     UINT32                    chunknumber = index / CALLSTACK_CHUNK_SIZE;
     const CallStack::chunk_t *chunk = &m_store;
 
     for (UINT32 count = 0; count < chunknumber; count++) {
         chunk = chunk->next;
+        if (chunk == NULL) {
+            return 0;
+        }
     }
 
     return chunk->frames[index % CALLSTACK_CHUNK_SIZE];
@@ -197,10 +208,13 @@ VOID CallStack::clear ()
 }
 
 LPCWSTR CallStack::getFunctionName(SIZE_T programCounter, DWORD64& displacement64,
-    SYMBOL_INFO* functionInfo, CriticalSectionLocker<DbgHelp>& locker) const
+    SYMBOL_INFOW* functionInfo, CriticalSectionLocker<DbgHelp>& locker) const
 {
+    if (functionInfo == NULL)
+        return L"(Unknown)";
+
     // Initialize structures passed to the symbol handler.
-    functionInfo->SizeOfStruct = sizeof(SYMBOL_INFO);
+    functionInfo->SizeOfStruct = sizeof(SYMBOL_INFOW);
     functionInfo->MaxNameLen = MAX_SYMBOL_NAME_LENGTH;
 
     // Try to get the name of the function containing this program
@@ -224,6 +238,11 @@ LPCWSTR CallStack::getFunctionName(SIZE_T programCounter, DWORD64& displacement6
 DWORD CallStack::resolveFunction(SIZE_T programCounter, IMAGEHLP_LINEW64* sourceInfo, DWORD displacement,
     LPCWSTR functionName, LPWSTR stack_line, DWORD stackLineSize) const
 {
+    if (stack_line == NULL || stackLineSize == 0)
+        return 0;
+    if (functionName == NULL)
+        functionName = L"(Unknown)";
+
     WCHAR callingModuleName[260];
     HMODULE hCallingModule = GetCallingModule(programCounter);
     LPWSTR moduleName = L"(Module name unavailable)";
@@ -270,7 +289,12 @@ DWORD CallStack::resolveFunction(SIZE_T programCounter, IMAGEHLP_LINEW64* source
         }
     }
     DWORD NumChars = (DWORD)w.size();
-    stack_line[NumChars] = '\0';
+    if (NumChars < stackLineSize) {
+        stack_line[NumChars] = L'\0';
+    } else {
+        stack_line[stackLineSize - 1] = L'\0';
+        NumChars = stackLineSize - 1;
+    }
     return NumChars;
 }
 
@@ -293,7 +317,7 @@ bool CallStack::isCrtStartupAlloc()
     IMAGEHLP_LINE64  sourceInfo = { 0 };
     sourceInfo.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
 
-    BYTE symbolBuffer[sizeof(SYMBOL_INFO) + MAX_SYMBOL_NAME_SIZE] = { 0 };
+    BYTE symbolBuffer[sizeof(SYMBOL_INFOW) + MAX_SYMBOL_NAME_SIZE] = { 0 };
     CriticalSectionLocker<DbgHelp> locker(g_DbgHelp);
 
     // Iterate through each frame in the call stack.
@@ -302,7 +326,7 @@ bool CallStack::isCrtStartupAlloc()
         // this program counter address.
         SIZE_T programCounter = (*this)[frame];
         DWORD64 displacement64;
-        LPCWSTR functionName = getFunctionName(programCounter, displacement64, (SYMBOL_INFO*)&symbolBuffer, locker);
+        LPCWSTR functionName = getFunctionName(programCounter, displacement64, (SYMBOL_INFOW*)&symbolBuffer, locker);
 
         m_status |= isCrtStartupFunction(functionName);
         if (m_status & CALLSTACK_STATUS_STARTUPCRT) {
@@ -336,7 +360,7 @@ void CallStack::dump(BOOL showInternalFrames, BOOL skipStartupLeaks)
         resolve(showInternalFrames, skipStartupLeaks);
     }
 
-    // The stack was reoslved already
+    // The stack was resolved already
     if (m_resolved) {
         return Print(m_resolved);
     }
@@ -388,11 +412,22 @@ int CallStack::resolve(BOOL showInternalFrames, BOOL skipStartupLeaks)
     static WCHAR stack_line[MAXREPORTLENGTH + 1] = L"";
     bool isPrevFrameInternal = false;
     DWORD NumChars = 0;
+    CriticalSectionLocker<> cs(g_heapMapLock);
     CriticalSectionLocker<DbgHelp> locker(g_DbgHelp);
 
     const size_t max_line_length = MAXREPORTLENGTH + 1;
-    m_resolvedCapacity = m_size * max_line_length;
-    const size_t allocedBytes = m_resolvedCapacity * sizeof(WCHAR);
+    // Check for overflow before multiplication
+    if (m_size > 0 && max_line_length > SIZE_MAX / m_size) {
+        // Overflow would occur, cannot allocate
+        return 0;
+    }
+    size_t resolvedCapacity = (size_t)m_size * max_line_length;
+    if (resolvedCapacity > (size_t)INT_MAX) {
+        // Too large for m_resolvedCapacity (int)
+        return 0;
+    }
+    m_resolvedCapacity = (int)resolvedCapacity;
+    const size_t allocedBytes = resolvedCapacity * sizeof(WCHAR);
     m_resolved = new WCHAR[m_resolvedCapacity];
     if (m_resolved) {
         ZeroMemory(m_resolved, allocedBytes);
@@ -408,8 +443,8 @@ int CallStack::resolve(BOOL showInternalFrames, BOOL skipStartupLeaks)
             continue;
 
         DWORD64 displacement64;
-        BYTE symbolBuffer[sizeof(SYMBOL_INFO) + MAX_SYMBOL_NAME_SIZE];
-        LPCWSTR functionName = getFunctionName(programCounter, displacement64, (SYMBOL_INFO*)&symbolBuffer, locker);
+        BYTE symbolBuffer[sizeof(SYMBOL_INFOW) + MAX_SYMBOL_NAME_SIZE];
+        LPCWSTR functionName = getFunctionName(programCounter, displacement64, (SYMBOL_INFOW*)&symbolBuffer, locker);
 
         if (skipStartupLeaks) {
             if (!(m_status & (CALLSTACK_STATUS_STARTUPCRT | CALLSTACK_STATUS_NOTSTARTUPCRT))) {
@@ -441,8 +476,8 @@ int CallStack::resolve(BOOL showInternalFrames, BOOL skipStartupLeaks)
 
         // show one allocation function for context
         if (NumChars > 0 && !isFrameInternal && isPrevFrameInternal) {
-            m_resolvedLength += NumChars;
             if (m_resolved) {
+                m_resolvedLength += NumChars;
                 wcsncat_s(m_resolved, m_resolvedCapacity, stack_line, NumChars);
             }
         }
@@ -454,8 +489,8 @@ int CallStack::resolve(BOOL showInternalFrames, BOOL skipStartupLeaks)
             displacement, functionName, stack_line, _countof( stack_line ));
 
         if (NumChars > 0 && !isFrameInternal) {
-            m_resolvedLength += NumChars;
             if (m_resolved) {
+                m_resolvedLength += NumChars;
                 wcsncat_s(m_resolved, m_resolvedCapacity, stack_line, NumChars);
             }
         }
@@ -489,6 +524,10 @@ VOID CallStack::push_back (const UINT_PTR programcounter)
     if (m_size == m_capacity) {
         // At current capacity. Allocate additional storage.
         CallStack::chunk_t *chunk = new CallStack::chunk_t;
+        if (chunk == NULL) {
+            // Out of memory. Cannot push more frames.
+            return;
+        }
         chunk->next = NULL;
         m_topChunk->next = chunk;
         m_topChunk = chunk;
@@ -510,6 +549,8 @@ VOID CallStack::push_back (const UINT_PTR programcounter)
 
 UINT CallStack::isCrtStartupFunction( LPCWSTR functionName ) const
 {
+    if (functionName == NULL)
+        return 0;
     size_t len = wcslen(functionName);
 
     if (beginWith(functionName, len, L"_malloc_crt")
@@ -548,11 +589,13 @@ UINT CallStack::isCrtStartupFunction( LPCWSTR functionName ) const
         return CALLSTACK_STATUS_NOTSTARTUPCRT;
     }
 
-    return NULL;
+    return 0;
 }
 
 bool CallStack::isInternalModule( const PWSTR filename ) const
 {
+    if (filename == NULL)
+        return false;
     size_t len = wcslen(filename);
     return
         // VS2015
@@ -663,8 +706,12 @@ VOID FastCallStack::getStackTrace (UINT32 maxdepth, const context_t& context)
         framePointer = (UINT_PTR*)*framePointer;
     }
 #elif defined(_M_X64)*/
-    UINT32 maxframes = min(62, maxdepth + 10);
+    UINT32 maxframes = std::min(62u, maxdepth + 10);
     UINT_PTR* myFrames = new UINT_PTR[maxframes];
+    if (myFrames == NULL) {
+        // Out of memory.
+        return;
+    }
     ZeroMemory(myFrames, sizeof(UINT_PTR) * maxframes);
     ULONG BackTraceHash;
     maxframes = RtlCaptureStackBackTrace(0, maxframes, reinterpret_cast<PVOID*>(myFrames), &BackTraceHash);
@@ -673,7 +720,7 @@ VOID FastCallStack::getStackTrace (UINT32 maxdepth, const context_t& context)
     while (count < maxframes) {
         if (myFrames[count] == 0)
             break;
-        if (myFrames[count] == context.fp)
+        if (myFrames[count] == context.returnAddress)
             startIndex = count;
         count++;
     }
@@ -717,7 +764,7 @@ VOID SafeCallStack::getStackTrace (UINT32 maxdepth, const context_t& context)
         push_back(function);
     }
 
-    if (context.IPREG == NULL)
+    if (context.IPREG == 0)
     {
         return;
     }

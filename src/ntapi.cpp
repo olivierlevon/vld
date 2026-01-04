@@ -33,8 +33,8 @@ RtlAllocateHeap_t   RtlAllocateHeap;
 RtlFreeHeap_t       RtlFreeHeap;
 RtlReAllocateHeap_t RtlReAllocateHeap;
 
-LdrGetDllHandle_t   LdrGetDllHandle;
-LdrGetProcedureAddress_t LdrGetProcedureAddress;
-LdrUnloadDll_t      LdrUnloadDll;
-LdrLockLoaderLock_t LdrLockLoaderLock;
-LdrUnlockLoaderLock_t LdrUnlockLoaderLock;
+LdrGetDllHandle_t         LdrGetDllHandle;
+LdrGetProcedureAddress_t  LdrGetProcedureAddress;
+LdrUnloadDll_t            LdrUnloadDll;
+LdrLockLoaderLock_t       LdrLockLoaderLock;
+LdrUnlockLoaderLock_t     LdrUnlockLoaderLock;

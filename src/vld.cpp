@@ -262,7 +262,7 @@ BOOL NtDllRestore(NTDLL_LDR_PATCH &NtDllPatch)
 {
     // Restore patched bytes
     BOOL bResult = FALSE;
-    if (NtDllPatch.bState && NtDllPatch.nPatchSize && &NtDllPatch.pBackup[0]) {
+    if (NtDllPatch.bState && NtDllPatch.nPatchSize) {
         DWORD dwProtect = 0;
         if (VirtualProtect(NtDllPatch.pPatchAddress, NtDllPatch.nPatchSize, PAGE_EXECUTE_READWRITE, &dwProtect)) {
             memcpy(NtDllPatch.pPatchAddress, NtDllPatch.pBackup, NtDllPatch.nPatchSize);
@@ -343,7 +343,7 @@ VisualLeakDetector::VisualLeakDetector ()
     _set_error_mode(_OUT_TO_STDERR);
 
     // Initialize configuration options and related private data.
-    _wcsnset_s(m_forcedModuleList, MAXMODULELISTLENGTH, '\0', _TRUNCATE);
+    _wcsnset_s(m_forcedModuleList, MAXMODULELISTLENGTH, L'\0', _TRUNCATE);
     m_maxDataDump    = 0xffffffff;
     m_maxTraceFrames = 0xffffffff;
     m_options        = 0x0;
@@ -387,17 +387,17 @@ VisualLeakDetector::VisualLeakDetector ()
     if (!IsWindows7OrGreater()) // kernel32.dll
     {
         if (kernel32)
-            m_GetProcAddress = (GetProcAddress_t) GetProcAddress(kernel32, "GetProcAddress");
+            s_GetProcAddress = (GetProcAddress_t) GetProcAddress(kernel32, "GetProcAddress");
     }
     else
     {
         if (kernelBase)
         {
-            m_GetProcAddress = (GetProcAddress_t)GetProcAddress(kernelBase, "GetProcAddress");
-            m_GetProcAddressForCaller = (GetProcAddressForCaller_t)GetProcAddress(kernelBase, "GetProcAddressForCaller");
+            s_GetProcAddress = (GetProcAddress_t)GetProcAddress(kernelBase, "GetProcAddress");
+            s_GetProcAddressForCaller = (GetProcAddressForCaller_t)GetProcAddress(kernelBase, "GetProcAddressForCaller");
         }
-        assert(m_patchTable[0].patchTable == m_kernelbasePatch);
-        m_patchTable[0].exportModuleName = "kernelbase.dll";
+        assert(s_patchTable[0].patchTable == s_kernelbasePatch);
+        s_patchTable[0].exportModuleName = "kernelbase.dll";
     }
 
     // Initialize global variables.
@@ -598,7 +598,7 @@ void VisualLeakDetector::checkInternalMemoryLeaks()
         header = header->next;
     }
     if (m_options & VLD_OPT_SELF_TEST) {
-        if ((internalleaks == 1) && (strcmp(leakfile, m_selfTestFile) == 0) && (leakline == m_selfTestLine)) {
+        if ((internalleaks == 1) && leakfile && (strcmp(leakfile, m_selfTestFile) == 0) && (leakline == m_selfTestLine)) {
             Report(L"Visual Leak Detector passed the memory leak self-test.\n");
         }
         else {
@@ -665,11 +665,12 @@ VisualLeakDetector::~VisualLeakDetector ()
             // Free internally allocated resources used by the heapmap and blockmap.
             CriticalSectionLocker<> cs(g_heapMapLock);
             for (HeapMap::Iterator heapit = m_heapMap->begin(); heapit != m_heapMap->end(); ++heapit) {
-                BlockMap *blockmap = &(*heapit).second->blockMap;
+                heapinfo_t* heapinfo = (*heapit).second;
+                BlockMap *blockmap = &heapinfo->blockMap;
                 for (BlockMap::Iterator blockit = blockmap->begin(); blockit != blockmap->end(); ++blockit) {
                     delete (*blockit).second;
                 }
-                delete blockmap;
+                delete heapinfo;
             }
             delete m_heapMap;
         }
@@ -747,7 +748,7 @@ UINT32 VisualLeakDetector::getModuleState(ModuleSet::Iterator& it, UINT32& modul
             return 1;
     }
 
-    if (IsModulePatched((HMODULE) modulebase, m_patchTable, _countof(m_patchTable)))
+    if (IsModulePatched((HMODULE) modulebase, s_patchTable, _countof(s_patchTable)))
     {
         // This module is already attached. Just update the module's
         // flags, nothing more.
@@ -853,8 +854,8 @@ VOID VisualLeakDetector::attachToLoadedModules (ModuleSet *newmodules)
             LPSTR modulenamea;
             ConvertModulePathToAscii(modulename, &modulenamea);
 
-            for (UINT index = 0; index < _countof(m_patchTable); index++) {
-                moduleentry_t *entry = &m_patchTable[index];
+            for (UINT index = 0; index < _countof(s_patchTable); index++) {
+                moduleentry_t *entry = &s_patchTable[index];
                 if (_stricmp(entry->exportModuleName, modulenamea) == 0) {
                     if (entry->reportLeaks != 0)
                         patchKnownModule = true;
@@ -884,7 +885,7 @@ VOID VisualLeakDetector::attachToLoadedModules (ModuleSet *newmodules)
             }
         }
         if ((moduleFlags & VLD_MODULE_EXCLUDED) == 0 &&
-            !(moduleFlags & VLD_MODULE_SYMBOLSLOADED) || (moduleimageinfo.SymType == SymExport)) {
+            (!(moduleFlags & VLD_MODULE_SYMBOLSLOADED) || (moduleimageinfo.SymType == SymExport))) {
             // This module is going to be included in leak detection, but complete
             // symbols for this module couldn't be loaded. This means that any stack
             // traces through this module may lack information, like line numbers
@@ -900,7 +901,7 @@ VOID VisualLeakDetector::attachToLoadedModules (ModuleSet *newmodules)
         (*updateit).flags = moduleFlags;
 
         // Attach to the module.
-        PatchModule(modulelocal, m_patchTable, _countof(m_patchTable));
+        PatchModule(modulelocal, s_patchTable, _countof(s_patchTable));
 
         FreeLibrary(modulelocal);
     }
@@ -988,7 +989,7 @@ LPWSTR VisualLeakDetector::buildSymbolSearchPath ()
             DWORD valuetype;
             DWORD dirLength = MAX_PATH * sizeof(WCHAR);
             regstatus = RegQueryValueExW(debuggerkey, L"SymbolCacheDir", NULL, &valuetype, (LPBYTE)&symbolCacheDir, &dirLength);
-            if (regstatus == ERROR_SUCCESS && valuetype == REG_SZ && symbolCacheDir[0] != NULL && !wcsstr(path, symbolCacheDir)) {
+            if (regstatus == ERROR_SUCCESS && valuetype == REG_SZ && symbolCacheDir[0] != L'\0' && !wcsstr(path, symbolCacheDir)) {
                 path = AppendString(path, symbolCacheDir);
                 path = AppendString(path, L"\\MicrosoftPublicSymbols;");
                 path = AppendString(path, symbolCacheDir);
@@ -1157,14 +1158,14 @@ VOID VisualLeakDetector::configure ()
     LoadStringOption(L"ForceIncludeModules", m_forcedModuleList, MAXMODULELISTLENGTH, inipath);
     _wcslwr_s(m_forcedModuleList, MAXMODULELISTLENGTH);
     if (wcscmp(m_forcedModuleList, L"*") == 0)
-        m_forcedModuleList[0] = '\0';
+        m_forcedModuleList[0] = L'\0';
     else
         m_options |= VLD_OPT_MODULE_LIST_INCLUDE;
 
     // Read the report destination (debugger, file, or both).
     WCHAR filename [MAX_PATH] = {0};
     LoadStringOption(L"ReportFile", filename, MAX_PATH, inipath);
-    if (filename[0] == '\0') {
+    if (filename[0] == L'\0') {
         wcsncpy_s(filename, MAX_PATH, VLD_DEFAULT_REPORT_FILE_NAME, _TRUNCATE);
     }
     WCHAR* path = _wfullpath(m_reportFilePath, filename, MAX_PATH);
@@ -1418,21 +1419,19 @@ VOID VisualLeakDetector::mapHeap (HANDLE heap)
 {
     CriticalSectionLocker<> cs(g_heapMapLock);
 
+    // Check if this heap is already mapped
+    HeapMap::Iterator existing = m_heapMap->find(heap);
+    if (existing != m_heapMap->end()) {
+        // Heap is already mapped, nothing to do
+        return;
+    }
+
     // Create a new block map for this heap and insert it into the heap map.
     heapinfo_t* heapinfo = new heapinfo_t;
     heapinfo->blockMap.reserve(BLOCK_MAP_RESERVE);
     heapinfo->flags = 0x0;
 
-    HeapMap::Iterator heapit = m_heapMap->insert(heap, heapinfo);
-    if (heapit == m_heapMap->end()) {
-        // Somehow this heap has been created twice without being destroyed,
-        // or at least it was destroyed without VLD's knowledge. Unmap the heap
-        // from the existing heapinfo, and remap it to the new one.
-        Report(L"WARNING: Visual Leak Detector detected a duplicate heap (" ADDRESSFORMAT L").\n", heap);
-        heapit = m_heapMap->find(heap);
-        unmapHeap((*heapit).first);
-        m_heapMap->insert(heap, heapinfo);
-    }
+    m_heapMap->insert(heap, heapinfo);
 }
 
 // unmapblock - Tracks memory blocks that are freed. Unmaps the specified block
@@ -1644,7 +1643,7 @@ VOID VisualLeakDetector::reportConfig ()
     if (m_options & VLD_OPT_AGGREGATE_DUPLICATES) {
         Report(L"    Aggregating duplicate leaks.\n");
     }
-    if (m_forcedModuleList[0] != '\0') {
+    if (m_forcedModuleList[0] != L'\0') {
         Report(L"    Forcing %s of these modules in leak detection: %s\n",
             (m_options & VLD_OPT_MODULE_LIST_INCLUDE) ? L"inclusion" : L"exclusion", m_forcedModuleList);
     }
@@ -2055,9 +2054,9 @@ BOOL VisualLeakDetector::addLoadedModule (PCWSTR modulepath, DWORD64 modulebase,
 
         // See if this is a module listed in the patch table. If it is, update
         // the corresponding patch table entries' module base address.
-        UINT          tablesize = _countof(m_patchTable);
+        UINT          tablesize = _countof(s_patchTable);
         for (UINT index = 0; index < tablesize; index++) {
-            moduleentry_t *entry = &m_patchTable[index];
+            moduleentry_t *entry = &s_patchTable[index];
             if (_stricmp(entry->exportModuleName, modulenamea) == 0) {
                 entry->moduleBase = (UINT_PTR)modulebase;
             }
@@ -2101,9 +2100,9 @@ BOOL VisualLeakDetector::addLoadedModule (PCWSTR modulepath, DWORD64 modulebase,
 BOOL VisualLeakDetector::detachFromModule (PCWSTR /*modulepath*/, DWORD64 modulebase, ULONG /*modulesize*/,
     PVOID /*context*/)
 {
-    UINT tablesize = _countof(m_patchTable);
+    UINT tablesize = _countof(s_patchTable);
 
-    RestoreModule((HMODULE)modulebase, m_patchTable, tablesize);
+    RestoreModule((HMODULE)modulebase, s_patchTable, tablesize);
 
     return TRUE;
 }
@@ -2137,9 +2136,9 @@ FARPROC VisualLeakDetector::_GetProcAddress (HMODULE module, LPCSTR procname)
     if (original) {
         // See if there is an entry in the patch table that matches the requested
         // function.
-        UINT tablesize = _countof(g_vld.m_patchTable);
+        UINT tablesize = VisualLeakDetector::PATCH_TABLE_SIZE;
         for (UINT index = 0; index < tablesize; index++) {
-            moduleentry_t *entry = &g_vld.m_patchTable[index];
+            moduleentry_t *entry = &g_vld.s_patchTable[index];
             if ((entry->moduleBase == 0x0) || ((HMODULE)entry->moduleBase != module)) {
                 // This patch table entry is for a different module.
                 continue;
@@ -2177,7 +2176,7 @@ FARPROC VisualLeakDetector::_GetProcAddress (HMODULE module, LPCSTR procname)
 
 FARPROC VisualLeakDetector::_RGetProcAddress(HMODULE module, LPCSTR procname)
 {
-    return m_GetProcAddress(module, procname);
+    return s_GetProcAddress(module, procname);
 }
 
 // _GetProcAddress - Calls to GetProcAddress are patched through to this
@@ -2205,9 +2204,9 @@ FARPROC VisualLeakDetector::_GetProcAddressForCaller(HMODULE module, LPCSTR proc
     if (original) {
         // See if there is an entry in the patch table that matches the requested
         // function.
-        UINT tablesize = _countof(g_vld.m_patchTable);
+        UINT tablesize = VisualLeakDetector::PATCH_TABLE_SIZE;
         for (UINT index = 0; index < tablesize; index++) {
-            moduleentry_t *entry = &g_vld.m_patchTable[index];
+            moduleentry_t *entry = &g_vld.s_patchTable[index];
             if ((entry->moduleBase == 0x0) || ((HMODULE)entry->moduleBase != module)) {
                 // This patch table entry is for a different module.
                 continue;
@@ -2246,7 +2245,7 @@ FARPROC VisualLeakDetector::_GetProcAddressForCaller(HMODULE module, LPCSTR proc
 
 FARPROC VisualLeakDetector::_RGetProcAddressForCaller(HMODULE module, LPCSTR procname, LPVOID caller)
 {
-    return m_GetProcAddressForCaller(module, procname, caller);
+    return s_GetProcAddressForCaller(module, procname, caller);
 }
 
 // _LdrLoadDll - Calls to LdrLoadDll are patched through to this function. This
@@ -2647,6 +2646,9 @@ void VisualLeakDetector::SetOptions(UINT32 option_mask, SIZE_T maxDataDump, UINT
 
 void VisualLeakDetector::SetModulesList(CONST WCHAR *modules, BOOL includeModules)
 {
+    if (modules == NULL)
+        return;
+
     if (m_options & VLD_OPT_VLDOFF) {
         // VLD has been turned off.
         return;
@@ -2663,9 +2665,12 @@ void VisualLeakDetector::SetModulesList(CONST WCHAR *modules, BOOL includeModule
 
 bool VisualLeakDetector::GetModulesList(WCHAR *modules, UINT size)
 {
+    if (modules == NULL || size == 0)
+        return false;
+
     if (m_options & VLD_OPT_VLDOFF) {
         // VLD has been turned off.
-        modules[0] = '\0';
+        modules[0] = L'\0';
         return true;
     }
 
@@ -2676,9 +2681,12 @@ bool VisualLeakDetector::GetModulesList(WCHAR *modules, UINT size)
 
 void VisualLeakDetector::GetReportFilename(WCHAR *filename)
 {
+    if (filename == NULL)
+        return;
+
     if (m_options & VLD_OPT_VLDOFF) {
         // VLD has been turned off.
-        m_reportFilePath[0] = '\0';
+        filename[0] = L'\0';
         return;
     }
 
@@ -2978,26 +2986,26 @@ void CaptureContext::Set(HANDLE heap, LPVOID mem, LPVOID newmem, SIZE_T size) {
 }
 
 void CaptureContext::Reset() {
-    m_tls->context.func = NULL;
-    m_tls->context.fp = NULL;
+    m_tls->context.func = 0;
+    m_tls->context.returnAddress = 0;
 #if defined(_M_IX86)
-    m_tls->context.Ebp = m_tls->context.Esp = m_tls->context.Eip = NULL;
+    m_tls->context.Ebp = m_tls->context.Esp = m_tls->context.Eip = 0;
 #elif defined(_M_X64)
-    m_tls->context.Rbp = m_tls->context.Rsp = m_tls->context.Rip = NULL;
+    m_tls->context.Rbp = m_tls->context.Rsp = m_tls->context.Rip = 0;
 #endif
     m_tls->flags &= ~(VLD_TLS_DEBUGCRTALLOC | VLD_TLS_UCRT);
-    Set(NULL, NULL, NULL, NULL);
+    Set(NULL, NULL, NULL, 0);
 }
 
 BOOL CaptureContext::IsExcludedModule() {
-    HMODULE hModule = GetCallingModule(m_context.fp);
+    HMODULE hModule = GetCallingModule(m_context.returnAddress);
     if (hModule == g_vld.m_dbghlpBase)
         return TRUE;
 
-    UINT tablesize = _countof(g_vld.m_patchTable);
+    UINT tablesize = VisualLeakDetector::PATCH_TABLE_SIZE;
     for (UINT index = 0; index < tablesize; index++) {
-        if (((HMODULE)g_vld.m_patchTable[index].moduleBase == hModule)) {
-            return !g_vld.m_patchTable[index].reportLeaks;
+        if (((HMODULE)g_vld.s_patchTable[index].moduleBase == hModule)) {
+            return !g_vld.s_patchTable[index].reportLeaks;
         }
     }
 

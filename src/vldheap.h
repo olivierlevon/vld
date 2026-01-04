@@ -35,16 +35,16 @@ Applications should never include this header."
 
 // Memory block header structure used internally by the debug CRT. All blocks
 // allocated by the CRT are allocated from the CRT heap and, in debug mode, they
-// have this header pretended to them (there's also a trailer appended at the
+// have this header prepended to them (there's also a trailer appended at the
 // end, but we're not interested in that).
 struct crtdbgblockheader_t
 {
     struct crtdbgblockheader_t *next;       // Pointer to the next block in the list of blocks allocated from the CRT heap.
     struct crtdbgblockheader_t *prev;       // Pointer to the previous block in the list of blocks allocated from the CRT heap.
-    char const                 *file;          // Source file where this block was allocated.
+    const char                 *file;          // Source file where this block was allocated.
     int                      line;          // Line of code, within the above file, where this block was allocated.
 #ifdef _WIN64
-    int                      use;           // This block's "use type": see below.
+    int                      use;           // This block's "use type":
     size_t                   size;          // Size of the data portion of the block.
 #else
     size_t                   size;          // Size of the data portion of the block.
@@ -56,20 +56,20 @@ struct crtdbgblockheader_t
 #define CRT_USE_IGNORE   3                  //   This block is a specially tagged block that is ignored during some debug error checking.
 #define CRT_USE_CLIENT   4                  //   This block is a specially tagged block with special use defined by the user application.
     long                     request;       // This block's "request" number. Basically a serial number.
-    unsigned char            gap [GAPSIZE]; // No-man's land buffer zone, for buffer overrun/underrun checking.
+    unsigned char            gap[GAPSIZE];  // No-man's land buffer zone, for buffer overrun/underrun checking.
 };
 
 typedef char checkDebugHeapBlockAlignment[
-	(sizeof(crtdbgblockheader_t) % MEMORY_ALLOCATION_ALIGNMENT == 0) ? 1 : -1];
+    (sizeof(crtdbgblockheader_t) % MEMORY_ALLOCATION_ALIGNMENT == 0) ? 1 : -1];
 
 // Same for UCRT.
 struct crtdbgblockheaderucrt_t
 {
     struct crtdbgblockheaderucrt_t *next;       // Pointer to the next block in the list of blocks allocated from the CRT heap.
     struct crtdbgblockheaderucrt_t *prev;       // Pointer to the previous block in the list of blocks allocated from the CRT heap.
-    char const              *file;          // Source file where this block was allocated.
+    const char              *file;          // Source file where this block was allocated.
     int                      line;          // Line of code, within the above file, where this block was allocated.
-    int                      use;           // This block's "use type": see below.
+    int                      use;           // This block's "use type": see CRT_USE_* defines above.
     size_t                   size;          // Size of the data portion of the block.
     long                     request;       // This block's "request" number. Basically a serial number.
     unsigned char            gap[GAPSIZE]; // No-man's land buffer zone, for buffer overrun/underrun checking.
@@ -82,12 +82,12 @@ typedef char checkDebugHeapBlockSize[
     (sizeof(crtdbgblockheader_t) == sizeof(crtdbgblockheaderucrt_t)) ? 1 : -1];
 
 // Macro to strip off any sub-type information stored in a block's "use type".
-#define CRT_USE_TYPE(use) (use & 0xFFFF)
+#define CRT_USE_TYPE(use) ((use) & 0xFFFF)
 #define _BLOCK_TYPE_IS_VALID(use) (_BLOCK_TYPE(use) == _CLIENT_BLOCK || (use) == _NORMAL_BLOCK || _BLOCK_TYPE(use) == _CRT_BLOCK || (use) == _IGNORE_BLOCK)
 
 // Memory block header structure used internally by VLD. All internally
 // allocated blocks are allocated from VLD's private heap and have this header
-// pretended to them.
+// prepended to them.
 struct vldblockheader_t
 {
     struct vldblockheader_t *next;          // Pointer to the next block in the list of internally allocated blocks.

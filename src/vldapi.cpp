@@ -139,7 +139,7 @@ __declspec(dllexport) BOOL VLDGetModulesList(WCHAR *modules, UINT size)
 
 __declspec(dllexport) void VLDSetReportOptions(UINT option_mask, CONST WCHAR *filename)
 {
-    g_vld.SetReportOptions(option_mask,filename);
+    g_vld.SetReportOptions(option_mask, filename);
 }
 
 __declspec(dllexport) int VLDResolveCallstacks()
@@ -147,8 +147,8 @@ __declspec(dllexport) int VLDResolveCallstacks()
     return g_vld.ResolveCallstacks();
 }
 
-/// Internal function for tests. Not safe to use because Vld own returned string
-__declspec(dllexport) const wchar_t* VldInternalGetAllocationCallstack(void* alloc, BOOL showInternalFrames)
+// Internal function for tests. Not safe to use because VLD owns the returned string.
+__declspec(dllexport) const wchar_t* VLDInternalGetAllocationCallstack(void* alloc, BOOL showInternalFrames)
 {
     return g_vld.GetAllocationResolveResults(alloc, showInternalFrames);
 }

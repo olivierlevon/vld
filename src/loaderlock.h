@@ -28,30 +28,45 @@
 class LoaderLock
 {
 public:
-    LoaderLock() : m_uCookie(NULL), m_hThreadId(NULL) {
-        ULONG uState = NULL;
-        NTSTATUS ntStatus = LdrLockLoaderLock(LDR_LOCK_LOADER_LOCK_FLAG_DEFAULT, &uState, &m_uCookie);
-        if (ntStatus == STATUS_SUCCESS) {
-            m_hThreadId = GetCurrentThreadId();
+    LoaderLock()
+        : m_cookie(0)
+        , m_threadId(0)
+        , m_locked(false)
+    {
+        if (LdrLockLoaderLock == NULL) {
+            return;
+        }
+
+        ULONG state = 0;
+        NTSTATUS status = LdrLockLoaderLock(LDR_LOCK_LOADER_LOCK_FLAG_DEFAULT, &state, &m_cookie);
+        if (status == STATUS_SUCCESS && m_cookie != 0) {
+            m_threadId = GetCurrentThreadId();
+            m_locked = true;
         }
     }
 
     ~LoaderLock() {
-        if (m_uCookie) {
-            NTSTATUS ntStatus = LdrUnlockLoaderLock(LDR_UNLOCK_LOADER_LOCK_FLAG_DEFAULT, m_uCookie);
-            if (ntStatus == STATUS_SUCCESS) {
-                m_hThreadId = NULL;
-                m_uCookie = NULL;
-            }
+        if (m_locked && m_cookie != 0 && LdrUnlockLoaderLock != NULL) {
+            LdrUnlockLoaderLock(LDR_UNLOCK_LOADER_LOCK_FLAG_DEFAULT, m_cookie);
         }
     }
 
-private:
-    // Disallow certain operations
-    LoaderLock(const LoaderLock&);
-    LoaderLock& operator=(const LoaderLock&);
+    // Check if the lock was successfully acquired
+    bool IsLocked() const {
+        return m_locked;
+    }
+
+    // Check if the lock is held by the current thread
+    bool IsLockedByCurrentThread() const {
+        return m_locked && (m_threadId == GetCurrentThreadId());
+    }
 
 private:
-    DWORD m_hThreadId;
-    ULONG_PTR m_uCookie;
+    // Non-copyable
+    LoaderLock(const LoaderLock&) = delete;
+    LoaderLock& operator=(const LoaderLock&) = delete;
+
+    ULONG_PTR m_cookie;
+    DWORD m_threadId;
+    bool m_locked;
 };

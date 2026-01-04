@@ -172,9 +172,9 @@ public:
 // crtd__calloc_dbg - Calls to _calloc_dbg from msvcrXXd.dll are patched
 //   through to this function.
 //
-//  - mem (IN): Pointer to the memory block to be reallocated.
+//  - num (IN): The number of elements to be allocated.
 //
-//  - size (IN): The size, in bytes, of the memory block to be allocated.
+//  - size (IN): The size, in bytes, of each element.
 //
 //  - type (IN): The CRT "use type" of the block to be allocated.
 //
@@ -274,7 +274,9 @@ void* CrtPatch<CRTVersion, debug>::crtd__realloc_dbg (void       *mem,
 //
 //  - mem (IN): Pointer to the memory block to be reallocated.
 //
-//  - size (IN): The size of the memory block to reallocate.
+//  - num (IN): Number of elements.
+//
+//  - size (IN): Size of each element.
 //
 //  - type (IN): The CRT "use type" of the block to be reallocated.
 //
@@ -285,7 +287,7 @@ void* CrtPatch<CRTVersion, debug>::crtd__realloc_dbg (void       *mem,
 //
 //  Return Value:
 //
-//    Returns the value returned by _realloc_dbg.
+//    Returns the value returned by _recalloc_dbg.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__recalloc_dbg (void       *mem,
@@ -401,15 +403,13 @@ void* CrtPatch<CRTVersion, debug>::crtd__vector_new_dbg (size_t      size,
 // crtd_calloc - Calls to calloc from msvcrXXd.dll are patched through to
 //   this function.
 //
-//  - dll (IN): The name of the dll
-//
 //  - num (IN): The number of blocks, of size 'size', to be allocated.
 //
 //  - size (IN): The size, in bytes, of the memory block to be allocated.
 //
 //  Return Value:
 //
-//    Returns the valued returned from calloc.
+//    Returns the value returned from calloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd_calloc (size_t num, size_t size)
@@ -426,13 +426,11 @@ void* CrtPatch<CRTVersion, debug>::crtd_calloc (size_t num, size_t size)
 // crtd_malloc - Calls to malloc from msvcrXXd.dll are patched through to
 //   this function.
 //
-//  - dll (IN): The name of the dll
-//
 //  - size (IN): The size, in bytes, of the memory block to be allocated.
 //
 //  Return Value:
 //
-//    Returns the valued returned from malloc.
+//    Returns the value returned from malloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd_malloc (size_t size)
@@ -448,8 +446,6 @@ void* CrtPatch<CRTVersion, debug>::crtd_malloc (size_t size)
 
 // crtd_realloc - Calls to realloc from msvcrXXd.dll are patched through to
 //   this function.
-//
-//  - dll (IN): The name of the dll
 //
 //  - mem (IN): Pointer to the memory block to reallocate.
 //
@@ -474,15 +470,15 @@ void* CrtPatch<CRTVersion, debug>::crtd_realloc (void *mem, size_t size)
 // crtd__recalloc - Calls to _recalloc from msvcrXXd.dll are patched through to
 //   this function.
 //
-//  - dll (IN): The name of the dll
-//
 //  - mem (IN): Pointer to the memory block to reallocate.
 //
-//  - size (IN): Size of the memory block to reallocate.
+//  - num (IN): Number of elements.
+//
+//  - size (IN): Size of each element.
 //
 //  Return Value:
 //
-//    Returns the value returned from realloc.
+//    Returns the value returned from _recalloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__recalloc (void *mem, size_t num, size_t size)
@@ -526,6 +522,8 @@ wchar_t* CrtPatch<CRTVersion, debug>::crtd__wcsdup (const wchar_t* src)
 //
 //  - size (IN): The size, in bytes, of the memory block to be allocated.
 //
+//  - alignment (IN): The alignment value, which must be an integer power of 2.
+//
 //  - type (IN): The CRT "use type" of the block to be allocated.
 //
 //  - file (IN): The name of the file from which this function is being called.
@@ -557,6 +555,10 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_malloc_dbg (size_t      size,
 //   through to this function.
 //
 //  - size (IN): The size, in bytes, of the memory block to be allocated.
+//
+//  - alignment (IN): The alignment value, which must be an integer power of 2.
+//
+//  - offset (IN): The offset into the memory allocation to force the alignment.
 //
 //  - type (IN): The CRT "use type" of the block to be allocated.
 //
@@ -593,6 +595,8 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_malloc_dbg (size_t      
 //
 //  - size (IN): The size of the memory block to reallocate.
 //
+//  - alignment (IN): The alignment value, which must be an integer power of 2.
+//
 //  - type (IN): The CRT "use type" of the block to be reallocated.
 //
 //  - file (IN): The name of the file from which this function is being called.
@@ -627,6 +631,10 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_realloc_dbg (void       *mem,
 //  - mem (IN): Pointer to the memory block to be reallocated.
 //
 //  - size (IN): The size of the memory block to reallocate.
+//
+//  - alignment (IN): The alignment value, which must be an integer power of 2.
+//
+//  - offset (IN): The offset into the memory allocation to force the alignment.
 //
 //  - type (IN): The CRT "use type" of the block to be reallocated.
 //
@@ -666,6 +674,8 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_realloc_dbg (void       
 //
 //  - size (IN): The size of the memory block to reallocate.
 //
+//  - alignment (IN): The alignment value, which must be an integer power of 2.
+//
 //  - type (IN): The CRT "use type" of the block to be reallocated.
 //
 //  - file (IN): The name of the file from which this function is being called.
@@ -675,7 +685,7 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_realloc_dbg (void       
 //
 //  Return Value:
 //
-//    Returns the value returned by _aligned_realloc_dbg.
+//    Returns the value returned by _aligned_recalloc_dbg.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__aligned_recalloc_dbg (void       *mem,
@@ -695,14 +705,18 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_recalloc_dbg (void       *mem,
     return pcrtxxd__recalloc_dbg(mem, num, size, alignment, type, file, line);
 }
 
-// crtd__aligned_offset_recalloc_dbg - Calls to _aligned_offset_realloc_dbg from msvcrXXd.dll are patched
-//   through to this function.
+// crtd__aligned_offset_recalloc_dbg - Calls to _aligned_offset_recalloc_dbg from msvcrXXd.dll
+//   are patched through to this function.
 //
 //  - mem (IN): Pointer to the memory block to be reallocated.
 //
 //  - num (IN): The count of the memory block to reallocate.
 //
 //  - size (IN): The size of the memory block to reallocate.
+//
+//  - alignment (IN): The alignment value, which must be an integer power of 2.
+//
+//  - offset (IN): The offset into the memory allocation to force the alignment.
 //
 //  - type (IN): The CRT "use type" of the block to be reallocated.
 //
@@ -713,7 +727,7 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_recalloc_dbg (void       *mem,
 //
 //  Return Value:
 //
-//    Returns the value returned by _aligned_offset_realloc_dbg.
+//    Returns the value returned by _aligned_offset_recalloc_dbg.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_recalloc_dbg (void       *mem,
@@ -734,16 +748,16 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_recalloc_dbg (void      
     return pcrtxxd__recalloc_dbg(mem, num, size, alignment, offset, type, file, line);
 }
 
-// crtd__aligned_malloc - Calls to malloc from msvcrXXd.dll are patched through to
-//   this function.
-//
-//  - dll (IN): The name of the dll
+// crtd__aligned_malloc - Calls to _aligned_malloc from msvcrXXd.dll are patched
+//   through to this function.
 //
 //  - size (IN): The size, in bytes, of the memory block to be allocated.
 //
+//  - alignment (IN): The alignment value, which must be a power of 2.
+//
 //  Return Value:
 //
-//    Returns the valued returned from malloc.
+//    Returns the value returned from _aligned_malloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__aligned_malloc (size_t size, size_t alignment)
@@ -757,16 +771,18 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_malloc (size_t size, size_t ali
     return pcrtxxd_malloc(size, alignment);
 }
 
-// crtd__aligned_offset_malloc - Calls to malloc from msvcrXXd.dll are patched through to
-//   this function.
-//
-//  - dll (IN): The name of the dll
+// crtd__aligned_offset_malloc - Calls to _aligned_offset_malloc from msvcrXXd.dll
+//   are patched through to this function.
 //
 //  - size (IN): The size, in bytes, of the memory block to be allocated.
 //
+//  - alignment (IN): The alignment value, which must be a power of 2.
+//
+//  - offset (IN): The offset into the allocation to force alignment.
+//
 //  Return Value:
 //
-//    Returns the valued returned from malloc.
+//    Returns the value returned from _aligned_offset_malloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_malloc (size_t size, size_t alignment, size_t offset)
@@ -780,18 +796,18 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_malloc (size_t size, siz
     return pcrtxxd_malloc(size, alignment, offset);
 }
 
-// crtd__aligned_realloc - Calls to realloc from msvcrXXd.dll are patched through to
-//   this function.
-//
-//  - dll (IN): The name of the dll
+// crtd__aligned_realloc - Calls to _aligned_realloc from msvcrXXd.dll are patched
+//   through to this function.
 //
 //  - mem (IN): Pointer to the memory block to reallocate.
 //
 //  - size (IN): Size of the memory block to reallocate.
 //
+//  - alignment (IN): The alignment value, which must be a power of 2.
+//
 //  Return Value:
 //
-//    Returns the value returned from realloc.
+//    Returns the value returned from _aligned_realloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__aligned_realloc (void *mem, size_t size, size_t alignment)
@@ -805,18 +821,20 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_realloc (void *mem, size_t size
     return pcrtxxd_realloc(mem, size, alignment);
 }
 
-// crtd__aligned_offset_realloc - Calls to realloc from msvcrXXd.dll are patched through to
-//   this function.
-//
-//  - dll (IN): The name of the dll
+// crtd__aligned_offset_realloc - Calls to _aligned_offset_realloc from msvcrXXd.dll
+//   are patched through to this function.
 //
 //  - mem (IN): Pointer to the memory block to reallocate.
 //
 //  - size (IN): Size of the memory block to reallocate.
 //
+//  - alignment (IN): The alignment value, which must be a power of 2.
+//
+//  - offset (IN): The offset into the allocation to force alignment.
+//
 //  Return Value:
 //
-//    Returns the value returned from realloc.
+//    Returns the value returned from _aligned_offset_realloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_realloc (void *mem, size_t size, size_t alignment, size_t offset)
@@ -830,20 +848,20 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_realloc (void *mem, size
     return pcrtxxd_realloc(mem, size, alignment, offset);
 }
 
-// crtd__aligned_recalloc - Calls to realloc from msvcrXXd.dll are patched through to
-//   this function.
-//
-//  - dll (IN): The name of the dll
-//
-//  - num (IN): Count of the memory block to reallocate.
+// crtd__aligned_recalloc - Calls to _aligned_recalloc from msvcrXXd.dll are patched
+//   through to this function.
 //
 //  - mem (IN): Pointer to the memory block to reallocate.
 //
-//  - size (IN): Size of the memory block to reallocate.
+//  - num (IN): Number of elements.
+//
+//  - size (IN): Size of each element.
+//
+//  - alignment (IN): The alignment value, which must be a power of 2.
 //
 //  Return Value:
 //
-//    Returns the value returned from realloc.
+//    Returns the value returned from _aligned_recalloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__aligned_recalloc (void *mem, size_t num, size_t size, size_t alignment)
@@ -857,20 +875,22 @@ void* CrtPatch<CRTVersion, debug>::crtd__aligned_recalloc (void *mem, size_t num
     return pcrtxxd_recalloc(mem, num, size, alignment);
 }
 
-// crtd__aligned_offset_recalloc - Calls to realloc from msvcrXXd.dll are patched through to
-//   this function.
-//
-//  - dll (IN): The name of the dll
+// crtd__aligned_offset_recalloc - Calls to _aligned_offset_recalloc from msvcrXXd.dll
+//   are patched through to this function.
 //
 //  - mem (IN): Pointer to the memory block to reallocate.
 //
-//  - num (IN): Count of the memory block to reallocate.
+//  - num (IN): Number of elements.
 //
-//  - size (IN): Size of the memory block to reallocate.
+//  - size (IN): Size of each element.
+//
+//  - alignment (IN): The alignment value, which must be a power of 2.
+//
+//  - offset (IN): The offset into the allocation to force alignment.
 //
 //  Return Value:
 //
-//    Returns the value returned from realloc.
+//    Returns the value returned from _aligned_offset_recalloc.
 //
 template<int CRTVersion, bool debug>
 void* CrtPatch<CRTVersion, debug>::crtd__aligned_offset_recalloc (void *mem, size_t num, size_t size, size_t alignment, size_t offset)
@@ -932,7 +952,7 @@ void* CrtPatch<CRTVersion, debug>::crtd_vector_new (size_t size)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-// mfcd__scalar_new_dbg_3p - Calls to the MFC debug scalar new operator from
+// mfcd__scalar_new_dbg_4p - Calls to the MFC debug scalar new operator from
 //   mfcXXd.dll are patched through to this function.
 //
 //  - size (IN): The size, in bytes, of the memory block to be allocated.
@@ -1297,8 +1317,8 @@ VS110   VS110::data;
 VS110d  VS110d::data;
 VS120   VS120::data;
 VS120d  VS120d::data;
-UCRT   UCRT::data;
-UCRTd  UCRTd::data;
+UCRT    UCRT::data;
+UCRTd   UCRTd::data;
 
 
 // Visual Studio 6.0

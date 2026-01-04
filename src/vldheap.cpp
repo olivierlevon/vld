@@ -150,24 +150,33 @@ void operator delete [] (void *block, const char *, int)
 //    If the memory allocation succeeds, a pointer to the allocated memory
 //    block is returned. If the allocation fails, NULL is returned.
 //
-void* vldnew (size_t size, const char *file, int line)
+static inline void* vldnew (size_t size, const char *file, int line)
 {
-    vldblockheader_t *header = (vldblockheader_t*)RtlAllocateHeap(g_vldHeap, 0x0, size + sizeof(vldblockheader_t));
     static SIZE_T     serialnumber = 0;
+
+    // Check for integer overflow before adding header size
+    if (size > (SIZE_MAX - sizeof(vldblockheader_t))) {
+        // Size too large, would overflow
+        return NULL;
+    }
+
+    vldblockheader_t *header = (vldblockheader_t*)RtlAllocateHeap(g_vldHeap, 0x0, size + sizeof(vldblockheader_t));
 
     if (header == NULL) {
         // Out of memory.
         return NULL;
     }
 
-    // Fill in the block's header information.
+    // Fill in the block's header information and link into list.
+    // All operations on shared state must be inside the critical section.
+    CriticalSectionLocker<> cs(g_vldHeapLock);
+
     header->file         = file;
     header->line         = line;
     header->serialNumber = serialnumber++;
     header->size         = size;
 
     // Link the block into the block list.
-    CriticalSectionLocker<> cs(g_vldHeapLock);
     header->next         = g_vldBlockList;
     if (header->next != NULL) {
         header->next->prev = header;
@@ -188,12 +197,11 @@ void* vldnew (size_t size, const char *file, int line)
 //
 //    None.
 //
-void vlddelete (void *block)
+static inline void vlddelete (void *block)
 {
     if (block == NULL)
         return;
 
-    BOOL              freed;
     vldblockheader_t *header = VLDBLOCKHEADER((LPVOID)block);
 
     // Unlink the block from the block list.
@@ -210,6 +218,7 @@ void vlddelete (void *block)
     }
 
     // Free the block.
-    freed = RtlFreeHeap(g_vldHeap, 0x0, header);
+    BOOL freed = RtlFreeHeap(g_vldHeap, 0x0, header);
     assert(freed);
+    (void)freed;  // Suppress unused variable warning in release builds
 }

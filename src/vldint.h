@@ -49,10 +49,10 @@
 #define SELFTESTTEXTA       "Memory Leak Self-Test"
 #define SELFTESTTEXTW       L"Memory Leak Self-Test"
 #define VLDREGKEYPRODUCT    L"Software\\Visual Leak Detector"
-#ifndef WIN64
-#define VLDDLL				"vld_x86.dll"
+#ifdef _WIN64
+#define VLDDLL              "vld_x64.dll"
 #else
-#define VLDDLL				"vld_x64.dll"
+#define VLDDLL              "vld_x86.dll"
 #endif
 
 // The Visual Leak Detector APIs.
@@ -132,18 +132,13 @@ typedef std::basic_string<wchar_t, std::char_traits<wchar_t>, vldallocator<wchar
 // a given module and can be used with the Set template because it supports the
 // '<' operator (sorts by virtual address range).
 struct moduleinfo_t {
-    BOOL operator < (const struct moduleinfo_t& other) const
+    bool operator < (const struct moduleinfo_t& other) const
     {
-        if (addrHigh < other.addrLow) {
-            return TRUE;
-        }
-        else {
-            return FALSE;
-        }
+        return addrHigh < other.addrLow;
     }
 
-    SIZE_T addrLow;                  // Lowest address within the module's virtual address space (i.e. base address).
-    SIZE_T addrHigh;                 // Highest address within the module's virtual address space (i.e. base + size).
+    UINT_PTR addrLow;                // Lowest address within the module's virtual address space (i.e. base address).
+    UINT_PTR addrHigh;               // Highest address within the module's virtual address space (i.e. base + size).
     UINT32 flags;                    // Module flags:
 #define VLD_MODULE_EXCLUDED      0x1 //   If set, this module is excluded from leak detection.
 #define VLD_MODULE_SYMBOLSLOADED 0x2 //   If set, this module's debug symbols have been loaded.
@@ -189,21 +184,20 @@ public:
     CaptureContext(void* func, context_t& context, BOOL debug = FALSE, BOOL ucrt = FALSE);
     ~CaptureContext();
     __forceinline void Set(HANDLE heap, LPVOID mem, LPVOID newmem, SIZE_T size);
-private:
-    // Disallow certain operations
-    CaptureContext();
-    CaptureContext(const CaptureContext&);
-    CaptureContext& operator=(const CaptureContext&);
+
+    // Non-copyable, non-default-constructible
+    CaptureContext() = delete;
+    CaptureContext(const CaptureContext&) = delete;
+    CaptureContext& operator=(const CaptureContext&) = delete;
+
 private:
     BOOL IsExcludedModule();
     void Reset();
-private:
+
     tls_t *m_tls;
     BOOL m_bFirst;
     const context_t& m_context;
 };
-
-class CallStack;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -236,6 +230,8 @@ class VisualLeakDetector : public IMalloc
     friend class CallStack;
     friend class CaptureContext;
 public:
+    static constexpr UINT PATCH_TABLE_SIZE = 58;  // Must match actual array size in dllspatches.cpp
+
     VisualLeakDetector();
     ~VisualLeakDetector();
 
@@ -297,7 +293,7 @@ private:
     VOID   attachToLoadedModules (ModuleSet *newmodules);
     UINT32 getModuleState(ModuleSet::Iterator& it, UINT32 &moduleFlags);
     LPWSTR buildSymbolSearchPath();
-    BOOL GetIniFilePath(LPTSTR lpPath, SIZE_T cchPath);
+    BOOL GetIniFilePath(LPWSTR lpPath, SIZE_T cchPath);
     VOID   configure ();
     BOOL   enabled ();
     SIZE_T eraseDuplicates (const BlockMap::Iterator &element, Set<blockinfo_t*> &aggregatedLeak);
@@ -324,7 +320,7 @@ private:
 
     // Utils
     static bool isModuleExcluded (UINT_PTR returnaddress);
-    blockinfo_t* findAllocedBlock(LPCVOID, __out HANDLE& heap);
+    blockinfo_t* findAllocedBlock(LPCVOID mem, _Out_ HANDLE& heap);
     blockinfo_t* getAllocationBlockInfo(void* alloc);
     void setupReporting();
     void checkInternalMemoryLeaks();
@@ -376,11 +372,11 @@ private:
     CriticalSection      m_optionsLock;       // Serializes access to the heap and block maps.
     UINT32               m_options;           // Configuration options.
 
-    static patchentry_t  m_kernelbasePatch [];
-    static patchentry_t  m_kernel32Patch [];
-    static patchentry_t  m_ntdllPatch [];
-    static patchentry_t  m_ole32Patch [];
-    static moduleentry_t m_patchTable [58];   // Table of imports patched for attaching VLD to other modules.
+    static patchentry_t  s_kernelbasePatch [];
+    static patchentry_t  s_kernel32Patch [];
+    static patchentry_t  s_ntdllPatch [];
+    static patchentry_t  s_ole32Patch [];
+    static moduleentry_t s_patchTable [PATCH_TABLE_SIZE]; // Table of imports patched for attaching VLD to other modules.
     FILE                *m_reportFile;        // File where the memory leak report may be sent to.
     WCHAR                m_reportFilePath [MAX_PATH]; // Full path and name of file to send memory leak report to.
     const char          *m_selfTestFile;      // Filename where the memory leak self-test block is leaked.
@@ -397,11 +393,11 @@ private:
     HMODULE              m_dbghlpBase;
 
     VOID __stdcall ChangeModuleState(HMODULE module, bool on);
-    static GetProcAddress_t m_GetProcAddress;
-    static GetProcAddressForCaller_t m_GetProcAddressForCaller;
-    static GetProcessHeap_t m_GetProcessHeap;
-    static HeapCreate_t m_HeapCreate;
-    static HeapFree_t m_HeapFree;
+    static GetProcAddress_t s_GetProcAddress;
+    static GetProcAddressForCaller_t s_GetProcAddressForCaller;
+    static GetProcessHeap_t s_GetProcessHeap;
+    static HeapCreate_t s_HeapCreate;
+    static HeapFree_t s_HeapFree;
 };
 
 

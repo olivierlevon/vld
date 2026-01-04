@@ -83,7 +83,7 @@ VOID DumpMemoryA (LPCVOID address, SIZE_T size)
         if (byteIndex < size) {
             BYTE byte = ((PBYTE)address)[byteIndex];
             _snwprintf_s(formatBuf, BYTEFORMATBUFFERLENGTH, _TRUNCATE, L"%.2X ", byte);
-            formatBuf[3] = '\0';
+            formatBuf[3] = L'\0';
             wcsncpy_s(hexDump + hexIndex, HEXDUMPLINELENGTH - hexIndex, formatBuf, 4);
             if (isgraph(byte)) {
                 ascDump[ascIndex] = (WCHAR)byte;
@@ -152,7 +152,7 @@ VOID DumpMemoryW (LPCVOID address, SIZE_T size)
         if (byteIndex < size) {
             BYTE byte = ((PBYTE)address)[byteIndex];
             _snwprintf_s(formatBuf, BYTEFORMATBUFFERLENGTH, _TRUNCATE, L"%.2X ", byte);
-            formatBuf[BYTEFORMATBUFFERLENGTH - 1] = '\0';
+            formatBuf[BYTEFORMATBUFFERLENGTH - 1] = L'\0';
             wcsncpy_s(hexDump + hexIndex, HEXDUMPLINELENGTH - hexIndex, formatBuf, 4);
             if (((byteIndex % 2) == 0) && ((byteIndex + 1) < dumpLen)) {
                 // On every even byte, print one character.
@@ -330,7 +330,6 @@ BOOL FindPatch (HMODULE importmodule, moduleentry_t *module)
     if (idte == NULL)
         return FALSE;
 
-    int i = 0;
     patchentry_t *entry = module->patchTable;
     while(entry->importName)
     {
@@ -348,7 +347,7 @@ BOOL FindPatch (HMODULE importmodule, moduleentry_t *module)
             }
             iate++;
         }
-        entry++; i++;
+        entry++;
     }
 
     // The module does not import the replacement. The patch has not been
@@ -371,8 +370,13 @@ VOID InsertReportDelay ()
 // ConvertModulePathToAscii - Convert module path to ascii encoding.
 void ConvertModulePathToAscii( LPCWSTR modulename, LPSTR * modulenamea )
 {
+	if (modulename == NULL || modulenamea == NULL)
+		return;
+
 	size_t length = ::WideCharToMultiByte(CP_ACP, 0, modulename, -1, 0, 0, 0, 0);
 	*modulenamea = new CHAR [length];
+	if (*modulenamea == NULL)
+		return;
 
 	// wcstombs_s requires locale to be already set up correctly, but it might not be correct on vld init step. So use WideCharToMultiByte instead
 	CHAR defaultChar     = '?';
@@ -449,7 +453,7 @@ LPVOID FindRealCode(LPVOID pCode)
             // Relative next instruction
             PBYTE	pNextInst = (PBYTE)((ULONG_PTR)pCode + 5);
             LONG	offset = *((LONG *)((ULONG_PTR)pCode + 1));
-            pCode = (LPVOID*)(pNextInst + offset);
+            pCode = (LPVOID)(pNextInst + offset);
             return FindRealCode(pCode);
         }
     }
@@ -523,7 +527,6 @@ BOOL PatchImport (HMODULE importmodule, moduleentry_t *patchModule)
         UNREFERENCED_PARAMETER(importdllname);
 
         patchentry_t *patchEntry = patchModule->patchTable;
-        int i = 0;
         while(patchEntry->importName)
         {
             LPCSTR importname   = patchEntry->importName;
@@ -538,14 +541,14 @@ BOOL PatchImport (HMODULE importmodule, moduleentry_t *patchModule)
 
             if (import == NULL) // Perhaps the named export module does not actually export the named import?
             {
-                patchEntry++; i++;
+                patchEntry++;
                 continue;
             }
 
             // Locate the import's IAT entry.
             IMAGE_THUNK_DATA *thunk = (IMAGE_THUNK_DATA*)R2VA(importmodule, idte->FirstThunk);
             IMAGE_THUNK_DATA *origThunk = (IMAGE_THUNK_DATA*)R2VA(importmodule, idte->OriginalFirstThunk);
-            for (; origThunk->u1.Function != NULL;
+            for (; origThunk->u1.Function != 0;
                 origThunk++, thunk++)
             {
                 LPVOID func = FindRealCode((LPVOID)thunk->u1.Function);
@@ -583,7 +586,7 @@ BOOL PatchImport (HMODULE importmodule, moduleentry_t *patchModule)
 #ifdef PRINTHOOKINFO
                 PIMAGE_IMPORT_BY_NAME funcEntry = (PIMAGE_IMPORT_BY_NAME)
                     R2VA(importmodule, origThunk->u1.AddressOfData);
-                if (stricmp(importdllname, patchModule->exportModuleName) == 0)
+                if (_stricmp(importdllname, patchModule->exportModuleName) == 0)
                 {
                     if (!(origThunk->u1.Ordinal & IMAGE_ORDINAL_FLAG) && !IS_ORDINAL(importname) &&
                         strcmp(reinterpret_cast<const char*>(funcEntry->Name), importname) == 0)
@@ -614,7 +617,7 @@ BOOL PatchImport (HMODULE importmodule, moduleentry_t *patchModule)
                 }
 #endif
             }
-            patchEntry++; i++;
+            patchEntry++;
         }
 
         idte++;
@@ -671,13 +674,16 @@ BOOL PatchModule (HMODULE importmodule, moduleentry_t patchtable [], UINT tables
     return patched;
 }
 
-int CallReportHook(int reportType, LPWSTR message, int* hook_retval)
+int CallReportHook(int reportType, LPCWSTR message, int* hook_retval)
 {
     if (g_pReportHooks == NULL)
         return 0;
     for (ReportHookSet::Iterator it = g_pReportHooks->begin(); it != g_pReportHooks->end(); ++it)
     {
-        int result = (*it)(reportType, message, hook_retval);
+        // The VLD_REPORT_HOOK API takes non-const wchar_t* for historical reasons,
+        // but hooks should not modify the message. Use const_cast to maintain
+        // const-correctness in the internal API while preserving ABI compatibility.
+        int result = (*it)(reportType, const_cast<wchar_t*>(message), hook_retval);
         if (result) // handled
             return result;
     }
@@ -696,7 +702,7 @@ int CallReportHook(int reportType, LPWSTR message, int* hook_retval)
 //
 //    None.
 //
-VOID Print (LPWSTR messagew)
+VOID Print (LPCWSTR messagew)
 {
     if (NULL == messagew)
         return;
@@ -830,13 +836,11 @@ VOID RestoreImport (HMODULE importmodule, moduleentry_t* module)
     DWORD dwLength = ::GetModuleFileNameA(importmodule, pszBuffer, dwMaxChars);
 #endif
 
-    int result = 0;
     while (idte->OriginalFirstThunk != 0x0)
     {
         PCHAR name = (PCHAR)R2VA(importmodule, idte->Name);
         UNREFERENCED_PARAMETER(name);
 
-        int i = 0;
         patchentry_t *entry = module->patchTable;
         while(entry->importName)
         {
@@ -849,7 +853,7 @@ VOID RestoreImport (HMODULE importmodule, moduleentry_t* module)
             LPCVOID original = g_vld._RGetProcAddress(exportmodule, importname);
             if (original == NULL) // Perhaps the named export module does not actually export the named import?
             {
-                entry++; i++;
+                entry++;
                 continue;
             }
 
@@ -885,10 +889,9 @@ VOID RestoreImport (HMODULE importmodule, moduleentry_t* module)
                         }
                     }
                 }
-                result++;
                 iate++;
             }
-            entry++; i++;
+            entry++;
         }
         idte++;
     }
@@ -988,12 +991,24 @@ VOID SetReportFile (FILE *file, BOOL copydebugger, BOOL tostdout)
 //
 LPWSTR AppendString (LPWSTR dest, LPCWSTR source)
 {
-    if ((source == NULL) || (source[0] == '\0'))
+    if ((source == NULL) || (source[0] == L'\0'))
     {
         return dest;
     }
+    if (dest == NULL)
+    {
+        // If dest is NULL, just duplicate source
+        SIZE_T length = wcslen(source);
+        LPWSTR new_str = new WCHAR [length + 1];
+        if (new_str == NULL)
+            return NULL;
+        wcsncpy_s(new_str, length + 1, source, _TRUNCATE);
+        return new_str;
+    }
     SIZE_T length = wcslen(dest) + wcslen(source);
     LPWSTR new_str = new WCHAR [length + 1];
+    if (new_str == NULL)
+        return dest;  // Return original if allocation fails
     wcsncpy_s(new_str, length + 1, dest, _TRUNCATE);
     wcsncat_s(new_str, length + 1, source, _TRUNCATE);
     delete [] dest;
@@ -1011,6 +1026,9 @@ LPWSTR AppendString (LPWSTR dest, LPCWSTR source)
 //    returns FALSE.
 //
 BOOL StrToBool (LPCWSTR s) {
+    if (s == NULL)
+        return FALSE;
+
     WCHAR *end;
 
     if ((_wcsicmp(s, L"true") == 0) ||
@@ -1130,12 +1148,12 @@ static const DWORD crctab[256] = {
 
 DWORD CalculateCRC32(UINT_PTR p, UINT startValue)
 {
-    register DWORD hash = startValue;
+    DWORD hash = startValue;
     hash = (hash >> 8) ^ crctab[(hash & 0xff) ^ ((p >>  0) & 0xff)];
     hash = (hash >> 8) ^ crctab[(hash & 0xff) ^ ((p >>  8) & 0xff)];
     hash = (hash >> 8) ^ crctab[(hash & 0xff) ^ ((p >> 16) & 0xff)];
     hash = (hash >> 8) ^ crctab[(hash & 0xff) ^ ((p >> 24) & 0xff)];
-#ifdef WIN64
+#ifdef _WIN64
     hash = (hash >> 8) ^ crctab[(hash & 0xff) ^ ((p >> 32) & 0xff)];
     hash = (hash >> 8) ^ crctab[(hash & 0xff) ^ ((p >> 40) & 0xff)];
     hash = (hash >> 8) ^ crctab[(hash & 0xff) ^ ((p >> 48) & 0xff)];

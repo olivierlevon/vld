@@ -71,7 +71,7 @@ public:
     //    Returns true if this Pair is less than the other Pair. Otherwise
     //    returns false.
     //
-    BOOL operator < (const Pair &other) const
+    bool operator < (const Pair &other) const
     {
         return (first < other.first);
     }
@@ -85,7 +85,7 @@ public:
 //
 //  The Map Template Class
 //
-//  This is a lightweidht STL-like map template. It makes use of the Tree class
+//  This is a lightweight STL-like map template. It makes use of the Tree class
 //  template to enable fast insert, find, and erase operations.
 //
 //  Note that while this is a STL-like class, it is not a full STL-compliant
@@ -118,7 +118,7 @@ public:
         //    Returns true if the specified Map Iterator is not equal to this
         //    Map Iterator; otherwise, returns false.
         //
-        BOOL operator != (const Iterator &other) const
+        bool operator != (const Iterator &other) const
         {
             return ((m_tree != other.m_tree) || (m_node != other.m_node));
         }
@@ -144,7 +144,7 @@ public:
         }
 
         // operator ++ - Prefix increment operator for Map Iterators. Causes the
-        //   Iterator to reference the in-oder successor of the key/value pair
+        //   Iterator to reference the in-order successor of the key/value pair
         //   currently referenced by the Iterator. If the Iterator is currently
         //   referencing the largest key/value pair in the Map, then the
         //   resulting Iterator will reference the Map's end (the NULL pair).
@@ -156,8 +156,8 @@ public:
         //  Return Value:
         //
         //    Returns the Iterator after it has been incremented.
-        // 
-        Iterator& operator ++ (int)
+        //
+        Iterator& operator ++ ()
         {
             m_node = m_tree->next(m_node);
             return *this;
@@ -177,8 +177,8 @@ public:
         //  Return Value:
         //
         //    Returns the Iterator before it has been incremented.
-        // 
-        Iterator operator ++ ()
+        //
+        Iterator operator ++ (int)
         {
             typename Tree<Pair<Tk, Tv> >::node_t *cur = m_node;
 
@@ -222,7 +222,7 @@ public:
         //    Returns true if the specified Map Iterator is equal to this Map
         //    Iterator; otherwise returns false.
         //
-        BOOL operator == (const Iterator &other) const
+        bool operator == (const Iterator &other) const
         {
             return ((m_tree == other.m_tree) && (m_node == other.m_node));
         }
@@ -250,7 +250,7 @@ public:
     //  Return Value:
     //
     //    Returns an Iterator referencing the first key/value pair in the Map.
-    //    If no key/value pairs are currenly stored in the map, returns the
+    //    If no key/value pairs are currently stored in the map, returns the
     //    "NULL" Iterator.
     //
     Iterator begin () const
@@ -325,7 +325,7 @@ public:
     //  Return Value:
     //
     //    Returns an Iterator referencing the resulting key/value pair after
-    //    if has been inserted into the map.
+    //    it has been inserted into the map.
     //
     Iterator insert (const Tk &key, const Tv &data)
     {

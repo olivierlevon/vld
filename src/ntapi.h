@@ -44,17 +44,17 @@ struct unicodestring_t {
 
 // Function pointer types for explicit dynamic linking with functions that can't
 // be load-time linked (no import library is available for these).
-typedef NTSTATUS (__stdcall *LdrLoadDll_t) (LPWSTR, PULONG, unicodestring_t *, PHANDLE);
-typedef NTSTATUS (__stdcall *LdrLoadDllWin8_t) (DWORD_PTR, PULONG, unicodestring_t *, PHANDLE);
-typedef LPVOID (__stdcall *RtlAllocateHeap_t) (HANDLE, DWORD, SIZE_T);
-typedef BYTE (__stdcall *RtlFreeHeap_t) (HANDLE, DWORD, LPVOID);
-typedef LPVOID (__stdcall *RtlReAllocateHeap_t) (HANDLE, DWORD, LPVOID, SIZE_T);
+typedef NTSTATUS (NTAPI *LdrLoadDll_t) (LPWSTR, PULONG, unicodestring_t *, PHANDLE);
+typedef NTSTATUS (NTAPI *LdrLoadDllWin8_t) (DWORD_PTR, PULONG, unicodestring_t *, PHANDLE);
+typedef LPVOID (NTAPI *RtlAllocateHeap_t) (HANDLE, DWORD, SIZE_T);
+typedef BOOLEAN (NTAPI *RtlFreeHeap_t) (HANDLE, DWORD, LPVOID);
+typedef LPVOID (NTAPI *RtlReAllocateHeap_t) (HANDLE, DWORD, LPVOID, SIZE_T);
 
-typedef NTSTATUS(NTAPI *LdrGetDllHandle_t) (PWSTR, PULONG, PUNICODE_STRING, PVOID *);
-typedef NTSTATUS(NTAPI *LdrGetProcedureAddress_t)(PVOID, PANSI_STRING, ULONG, PVOID *);
-typedef NTSTATUS(NTAPI *LdrUnloadDll_t)(PVOID);
-typedef NTSTATUS(NTAPI *LdrLockLoaderLock_t)(ULONG, PULONG, PULONG_PTR);
-typedef NTSTATUS(NTAPI *LdrUnlockLoaderLock_t)(ULONG, ULONG_PTR);
+typedef NTSTATUS (NTAPI *LdrGetDllHandle_t) (LPWSTR, PULONG, PUNICODE_STRING, PVOID *);
+typedef NTSTATUS (NTAPI *LdrGetProcedureAddress_t) (PVOID, PANSI_STRING, ULONG, PVOID *);
+typedef NTSTATUS (NTAPI *LdrUnloadDll_t) (PVOID);
+typedef NTSTATUS (NTAPI *LdrLockLoaderLock_t) (ULONG, PULONG, PULONG_PTR);
+typedef NTSTATUS (NTAPI *LdrUnlockLoaderLock_t) (ULONG, ULONG_PTR);
 
 // Provide forward declarations for the NT APIs for any source files that
 // include this header.
@@ -64,8 +64,8 @@ extern RtlAllocateHeap_t   RtlAllocateHeap;
 extern RtlFreeHeap_t       RtlFreeHeap;
 extern RtlReAllocateHeap_t RtlReAllocateHeap;
 
-extern LdrGetDllHandle_t LdrGetDllHandle;
-extern LdrGetProcedureAddress_t LdrGetProcedureAddress;
-extern LdrUnloadDll_t LdrUnloadDll;
-extern LdrLockLoaderLock_t LdrLockLoaderLock;
-extern LdrUnlockLoaderLock_t LdrUnlockLoaderLock;
+extern LdrGetDllHandle_t         LdrGetDllHandle;
+extern LdrGetProcedureAddress_t  LdrGetProcedureAddress;
+extern LdrUnloadDll_t            LdrUnloadDll;
+extern LdrLockLoaderLock_t       LdrLockLoaderLock;
+extern LdrUnlockLoaderLock_t     LdrUnlockLoaderLock;

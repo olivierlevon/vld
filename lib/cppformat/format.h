@@ -40,9 +40,6 @@
 #include <string>
 #include <sstream>
 
-#if _SECURE_SCL
-# include <iterator>
-#endif
 
 #ifdef _MSC_VER
 # include <intrin.h>  // _BitScanReverse, _BitScanReverse64
@@ -287,16 +284,8 @@ namespace internal {
 // to avoid dynamic memory allocation.
 enum { INLINE_BUFFER_SIZE = 500 };
 
-#if _SECURE_SCL
-// Use checked iterator to avoid warnings on MSVC.
-template <typename T>
-inline stdext::checked_array_iterator<T*> make_ptr(T *ptr, std::size_t size) {
-  return stdext::checked_array_iterator<T*>(ptr, size);
-}
-#else
 template <typename T>
 inline T *make_ptr(T *ptr, std::size_t) { return ptr; }
-#endif
 
 // A buffer for POD types. It supports a subset of std::vector's operations.
 template <typename T>
@@ -483,11 +472,7 @@ inline int isinfinity(long double x) { return !_finite(static_cast<double>(x)); 
 template <typename Char>
 class BasicCharTraits {
  public:
-#if _SECURE_SCL
-  typedef stdext::checked_array_iterator<Char*> CharPtr;
-#else
   typedef Char *CharPtr;
-#endif
 };
 
 template <typename Char>
@@ -1567,12 +1552,7 @@ class BasicWriter {
 
   typedef typename internal::CharTraits<Char>::CharPtr CharPtr;
 
-#if _SECURE_SCL
-  // Returns pointer value.
-  static Char *get(CharPtr p) { return p.base(); }
-#else
   static Char *get(Char *p) { return p; }
-#endif
 
   // Fills the padding around the content and returns the pointer to the
   // content area.

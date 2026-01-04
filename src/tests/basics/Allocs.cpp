@@ -63,8 +63,9 @@ static const int recursion = 3;
             return ::testing::AssertionFailure()
                 << resultStream.str() << actual_expr << " contain less lines than " << expected_expr << "";
         }
-        std::string actualLine(wactualLine.begin(), wactualLine.end());
-        std::transform(actualLine.begin(), actualLine.end(), actualLine.begin(), ::tolower);
+        std::string actualLine(wactualLine.size(), '\0');
+        std::transform(wactualLine.begin(), wactualLine.end(), actualLine.begin(),
+            [](wchar_t wc) { return static_cast<char>(::tolower(wc)); });
         if (!RE::FullMatch(actualLine, RE(expectedLine)))
         {
             if (succeded)

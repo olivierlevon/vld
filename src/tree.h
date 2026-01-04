@@ -76,7 +76,7 @@ public:
     // Reserve capacity for the tree is allocated in large chunks with room for
     // many nodes.
     struct chunk_t {
-        struct chunk_t *next;  // Pointer to the next node in the chunk list.
+        struct chunk_t *next;  // Pointer to the next chunk in the chunk list.
         node_t         *nodes; // Pointer to an array (of variable size) where nodes are stored.
     };
 
@@ -94,13 +94,6 @@ public:
         m_root       = &m_nil;
         m_store      = NULL;
         m_storetail  = NULL;
-    }
-
-    // Copy constructor - The sole purpose of this constructor's existence is
-    //   to ensure that trees are not being inadvertently copied.
-    Tree<T> (const Tree<T>& source)
-    {
-        assert(FALSE); // Do not make copies of trees!
     }
 
     // Destructor
@@ -121,18 +114,6 @@ public:
         m_lock.Leave();
 
         m_lock.Delete();
-    }
-
-    // operator = - Assignment operator. For efficiency, we want to avoid ever
-    //   making copies of Trees (only pointer passing or reference passing
-    //   should be performed). The sole purpose of this assignment operator is
-    //   to ensure that no copying is being done inadvertently.
-    //
-    Tree<T>& operator = (const Tree<T> &other)
-    {
-        // Don't make copies of Trees!
-        assert(FALSE);
-        return *this;
     }
 
     // begin - Obtains a pointer to the first node (the node with the smallest
@@ -172,12 +153,22 @@ public:
     //
     VOID erase (typename Tree::node_t *node)
     {
+        if (node == NULL) {
+            return;
+        }
+
+        CriticalSectionLocker<> cs(m_lock);
+        eraseNode(node);
+    }
+
+private:
+    // eraseNode - Internal function that erases a node. Caller must hold the lock.
+    VOID eraseNode (typename Tree::node_t *node)
+    {
         node_t *child;
         node_t *cur;
         node_t *erasure;
         node_t *sibling;
-
-        CriticalSectionLocker<> cs(m_lock);
 
         if ((node->left == &m_nil) || (node->right == &m_nil)) {
             // The node to be erased has less than two children. It can be directly
@@ -186,8 +177,8 @@ public:
         }
         else {
             // The node to be erased has two children. It can only be removed
-            // indirectly. The actual node will stay where it is, but it's contents
-            // will be replaced by it's in-order successor's contents. The successor
+            // indirectly. The actual node will stay where it is, but its contents
+            // will be replaced by its in-order successor's contents. The successor
             // node will then be erased. Find the successor.
             erasure = node->right;
             while (erasure->left != &m_nil) {
@@ -237,7 +228,7 @@ public:
                         // Sibling is red. Rotate sibling up and color it black.
                         sibling->color = black;
                         cur->parent->color = red;
-                        _rotateleft(cur->parent);
+                        rotateLeft(cur->parent);
                         sibling = cur->parent->right;
                     }
                     if ((sibling->left->color == black) && (sibling->right->color == black)) {
@@ -250,13 +241,13 @@ public:
                         if (sibling->right->color == black) {
                             sibling->left->color = black;
                             sibling->color = red;
-                            _rotateright(sibling);
+                            rotateRight(sibling);
                             sibling = cur->parent->right;
                         }
                         sibling->color = cur->parent->color;
                         cur->parent->color = black;
                         sibling->right->color = black;
-                        _rotateleft(cur->parent);
+                        rotateLeft(cur->parent);
                         cur = m_root;
                     }
                 }
@@ -267,7 +258,7 @@ public:
                         // Sibling is red. Rotate sibling up and color it black.
                         sibling->color = black;
                         cur->parent->color = red;
-                        _rotateright(cur->parent);
+                        rotateRight(cur->parent);
                         sibling = cur->parent->left;
                     }
                     if ((sibling->left->color == black) && (sibling->right->color == black)) {
@@ -280,13 +271,13 @@ public:
                         if (sibling->left->color == black) {
                             sibling->right->color = black;
                             sibling->color = red;
-                            _rotateleft(sibling);
+                            rotateLeft(sibling);
                             sibling = cur->parent->left;
                         }
                         sibling->color = cur->parent->color;
                         cur->parent->color = black;
                         sibling->left->color = black;
-                        _rotateright(cur->parent);
+                        rotateRight(cur->parent);
                         cur = m_root;
                     }
                 }
@@ -299,6 +290,7 @@ public:
         m_freelist = erasure;
     }
 
+public:
     // erase - Erases the specified key from the tree. Note that this does
     //   not cause the key associated with the erased node to be freed. The
     //   caller is responsible for freeing any dynamically allocated memory
@@ -330,7 +322,7 @@ public:
             }
             else {
                 // Found it.
-                erase(node);
+                eraseNode(node);
                 return;
             }
         }
@@ -390,7 +382,7 @@ public:
     {
         CriticalSectionLocker<> cs(m_lock);
 
-        // Find the location where the new node should be inserted..
+        // Find the location where the new node should be inserted.
         node_t  *cur = m_root;
         node_t  *parent = &m_nil;
         while (cur != &m_nil) {
@@ -413,6 +405,10 @@ public:
         if (m_freelist == NULL) {
             // Allocate additional storage.
             reserve(m_reserve);
+            if (m_freelist == NULL) {
+                // Allocation failed.
+                return NULL;
+            }
         }
         node_t  *node = m_freelist;
         m_freelist = m_freelist->next;
@@ -457,11 +453,11 @@ public:
                     // Uncle is black. Restructure.
                     if (cur == cur->parent->right) {
                         cur = cur->parent;
-                        _rotateleft(cur);
+                        rotateLeft(cur);
                     }
                     cur->parent->color = black;
                     cur->parent->parent->color = red;
-                    _rotateright(cur->parent->parent);
+                    rotateRight(cur->parent->parent);
                 }
             }
             else {
@@ -478,11 +474,11 @@ public:
                     // Uncle is black. Restructure.
                     if (cur == cur->parent->left) {
                         cur = cur->parent;
-                        _rotateright(cur);
+                        rotateRight(cur);
                     }
                     cur->parent->color = black;
                     cur->parent->parent->color = red;
-                    _rotateleft(cur->parent->parent);
+                    rotateLeft(cur->parent->parent);
                 }
             }
         }
@@ -505,8 +501,9 @@ public:
     //
     typename Tree::node_t* next (typename Tree::node_t *node) const
     {
-        if (node == NULL)
+        if (node == NULL) {
             return NULL;
+        }
 
         CriticalSectionLocker<> cs(m_lock);
         node_t* cur;
@@ -545,7 +542,7 @@ public:
             }
         }
         else {
-            // 'node' is root and root is the maximum node.
+            // 'node' is root with no right child, so there is no in-order successor.
             return NULL;
         }
     }
@@ -578,14 +575,14 @@ public:
             }
             return cur;
         }
-        else if (node->parent != & m_nil) {
+        else if (node->parent != &m_nil) {
             // 'node' has no left child, but does have a parent.
             if (node == node->parent->right) {
                 // 'node' is a right child; node's parent is predecessor.
                 return node->parent;
             }
             else {
-                // 'node is a left child.
+                // 'node' is a left child.
                 cur = node;
                 // Go up the tree until we find a parent to the left.
                 while (cur->parent != &m_nil) {
@@ -604,14 +601,14 @@ public:
             }
         }
         else {
-            // 'node' is root and root is the minimum node.
+            // 'node' is root with no left child, so there is no in-order predecessor.
             return NULL;
         }
     }
 
     // reserve - Reserves storage for a number of nodes in advance and/or sets
     //   the number of nodes for which the tree will automatically reserve
-    //   storage when the tree needs to "grow" to accomodate new values being
+    //   storage when the tree needs to "grow" to accommodate new values being
     //   inserted into the tree. If this function is not called to set the
     //   reserve size to a specific value, then a pre-determined default value
     //   will be used. If this function is called when the tree currently has
@@ -630,7 +627,10 @@ public:
     {
         chunk_t *chunk;
         size_t   index;
-        size_t   oldreserve = m_reserve;
+
+        CriticalSectionLocker<> cs(m_lock);
+
+        size_t oldreserve = m_reserve;
 
         if (count != m_reserve) {
             if (count < 1) {
@@ -642,7 +642,6 @@ public:
             }
         }
 
-        CriticalSectionLocker<> cs(m_lock);
         if (m_freelist == NULL) {
             // Allocate additional storage.
             // Link a new chunk into the chunk list.
@@ -669,7 +668,7 @@ public:
     }
 
 private:
-    // _rotateleft: Rotates a pair of nodes counter-clockwise so that the parent
+    // rotateLeft: Rotates a pair of nodes counter-clockwise so that the parent
     //   node becomes the left child and the right child becomes the parent.
     //
     //  - parent (IN): Pointer to the parent to rotate about.
@@ -678,7 +677,7 @@ private:
     //
     //    None.
     //
-    VOID _rotateleft (typename Tree::node_t *parent)
+    VOID rotateLeft (typename Tree::node_t *parent)
     {
         node_t *child = parent->right;
 
@@ -707,7 +706,7 @@ private:
         parent->parent = child;
     }
 
-    // _rotateright - Rotates a pair of nodes clockwise so that the parent node
+    // rotateRight - Rotates a pair of nodes clockwise so that the parent node
     //   becomes the right child and the left child becomes the parent.
     //
     //  - parent (IN): Pointer to the parent to rotate about.
@@ -716,7 +715,7 @@ private:
     //
     //    None.
     //
-    VOID _rotateright (typename Tree::node_t *parent)
+    VOID rotateRight (typename Tree::node_t *parent)
     {
         node_t *child = parent->left;
 
@@ -744,6 +743,10 @@ private:
         child->right = parent;
         parent->parent = child;
     }
+
+    // Non-copyable
+    Tree(const Tree&) = delete;
+    Tree& operator=(const Tree&) = delete;
 
     // Private data members.
     node_t                   *m_freelist;  // Pointer to the list of free nodes (reserve storage).

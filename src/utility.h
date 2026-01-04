@@ -34,11 +34,11 @@ Applications should never include this header."
 #include <intrin.h>
 
 #ifdef _WIN64
-#define ADDRESSFORMAT       L"0x%.16X"   // Format string for 64-bit addresses
-#define ADDRESSCPPFORMAT    L"0x{:016X}" // Format string for 64-bit addresses
+#define ADDRESSFORMAT       L"0x%.16I64X" // Format string for 64-bit addresses
+#define ADDRESSCPPFORMAT    L"0x{:016X}"  // Format string for 64-bit addresses (C++20 std::format)
 #else
-#define ADDRESSFORMAT       L"0x%.8X"    // Format string for 32-bit addresses
-#define ADDRESSCPPFORMAT    L"0x{:08X}"  // Format string for 32-bit addresses
+#define ADDRESSFORMAT       L"0x%.8X"     // Format string for 32-bit addresses
+#define ADDRESSCPPFORMAT    L"0x{:08X}"   // Format string for 32-bit addresses (C++20 std::format)
 #endif // _WIN64
 #define BOM             0xFEFF     // Unicode byte-order mark.
 #define MAXREPORTLENGTH 511        // Maximum length, in characters, of "report" messages.
@@ -58,7 +58,7 @@ Applications should never include this header."
 
 struct context_t
 {
-    UINT_PTR fp;
+    UINT_PTR returnAddress;
     UINT_PTR func;
 #if defined(_M_IX86)
     DWORD Ebp;
@@ -78,16 +78,18 @@ struct context_t
     {CONTEXT _ctx;                                                              \
     RtlCaptureContext(&_ctx);                                                   \
     context_.Ebp = _ctx.Ebp; context_.Esp = _ctx.Esp; context_.Eip = _ctx.Eip;  \
-    context_.fp = (UINT_PTR)_ReturnAddress();}
-#define GET_RETURN_ADDRESS(context)  (context.fp)
+    context_.returnAddress = (UINT_PTR)_ReturnAddress();                        \
+    context_.func = 0;}
+#define GET_RETURN_ADDRESS(context)  (context.returnAddress)
 #elif defined(_M_X64)
 #define CAPTURE_CONTEXT()                                                       \
     context_t context_;                                                         \
     {CONTEXT _ctx;                                                              \
     RtlCaptureContext(&_ctx);                                                   \
     context_.Rbp = _ctx.Rbp; context_.Rsp = _ctx.Rsp; context_.Rip = _ctx.Rip;  \
-    context_.fp = (UINT_PTR)_ReturnAddress();}
-#define GET_RETURN_ADDRESS(context)  (context.fp)
+    context_.returnAddress = (UINT_PTR)_ReturnAddress();                        \
+    context_.func = 0;}
+#define GET_RETURN_ADDRESS(context)  (context.returnAddress)
 #else
 // If you want to retarget Visual Leak Detector to another processor
 // architecture then you'll need to provide an architecture-specific macro to
@@ -133,12 +135,12 @@ VOID InsertReportDelay ();
 BOOL IsModulePatched (HMODULE importmodule, moduleentry_t patchtable [], UINT tablesize);
 BOOL PatchImport (HMODULE importmodule, moduleentry_t *module);
 BOOL PatchModule (HMODULE importmodule, moduleentry_t patchtable [], UINT tablesize);
-VOID Print (LPWSTR message);
+VOID Print (LPCWSTR message);
 VOID Report (LPCWSTR format, ...);
 #ifndef NDEBUG
 #define DbgPrint(x)     Print(x)
 #define DbgReport(...)  Report(__VA_ARGS__)
-#define DbgTrace(...)
+#define DbgTrace(...)   Report(__VA_ARGS__)
 #else
 #define DbgPrint(x)
 #define DbgReport(...)
@@ -150,17 +152,14 @@ VOID SetReportEncoding (encoding_e encoding);
 VOID SetReportFile (FILE *file, BOOL copydebugger, BOOL copytostdout);
 LPWSTR AppendString (LPWSTR dest, LPCWSTR source);
 BOOL StrToBool (LPCWSTR s);
-#if _WIN32_WINNT < 0x0600 // Windows XP or earlier, no GetProcessIdOfThread()
-DWORD _GetProcessIdOfThread (HANDLE thread);
-#define GetProcessIdOfThread _GetProcessIdOfThread
-#endif
 void ConvertModulePathToAscii( LPCWSTR modulename, LPSTR * modulenamea );
+// CRC32 start value is the bitwise inverse of the standard CRC32 initial value (0xFFFFFFFF)
 DWORD CalculateCRC32(UINT_PTR p, UINT startValue = 0xD202EF8D);
 // Formats a message string using the specified message and variable
 // list of arguments.
 void GetFormattedMessage(DWORD last_error);
 HMODULE GetCallingModule(UINT_PTR pCaller);
-DWORD FilterFunction(long);
+DWORD FilterFunction(long exceptionCode);
 BOOL LoadBoolOption(LPCWSTR optionname, LPCWSTR defaultvalue, LPCWSTR inipath);
 UINT LoadIntOption(LPCWSTR optionname, UINT defaultvalue, LPCWSTR inipath);
 VOID LoadStringOption(LPCWSTR optionname, LPWSTR outputbuffer, UINT buffersize, LPCWSTR inipath);

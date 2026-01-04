@@ -128,7 +128,7 @@ __declspec(dllimport) void VLDGlobalEnable ();
 //
 //  Return Value:
 //
-//    None.
+//    The number of leaks reported.
 //
 __declspec(dllimport) VLD_UINT VLDReportLeaks ();
 
@@ -138,7 +138,7 @@ __declspec(dllimport) VLD_UINT VLDReportLeaks ();
 //
 //  Return Value:
 //
-//    None.
+//    The number of leaks reported for the specified thread.
 //
 __declspec(dllimport) VLD_UINT VLDReportThreadLeaks (VLD_UINT threadId);
 
@@ -146,7 +146,7 @@ __declspec(dllimport) VLD_UINT VLDReportThreadLeaks (VLD_UINT threadId);
 //
 //  Return Value:
 //
-//    None.
+//    The number of memory leaks detected.
 //
 __declspec(dllimport) VLD_UINT VLDGetLeaksCount ();
 
@@ -156,7 +156,7 @@ __declspec(dllimport) VLD_UINT VLDGetLeaksCount ();
 //
 //  Return Value:
 //
-//    None.
+//    The number of memory leaks detected for the specified thread.
 //
 __declspec(dllimport) VLD_UINT VLDGetThreadLeaksCount (VLD_UINT threadId);
 
@@ -316,7 +316,7 @@ __declspec(dllimport) int VLDSetReportHook(int mode,  VLD_REPORT_HOOK pfnNewHook
 //
 //    int: 0 if successfully resolved all callstacks.
 //
-__declspec(dllexport) int VLDResolveCallstacks();
+__declspec(dllimport) int VLDResolveCallstacks();
 
 #ifdef __cplusplus
 }
@@ -330,9 +330,9 @@ __declspec(dllexport) int VLDResolveCallstacks();
 #define VLDGlobalDisable()
 #define VLDGlobalEnable()
 #define VLDReportLeaks() (0)
-#define VLDReportThreadLeaks() (0)
+#define VLDReportThreadLeaks(a) (0)
 #define VLDGetLeaksCount() (0)
-#define VLDGetThreadLeaksCount() (0)
+#define VLDGetThreadLeaksCount(a) (0)
 #define VLDMarkAllLeaksAsReported()
 #define VLDMarkThreadLeaksAsReported(a)
 #define VLDRefreshModules()
@@ -342,7 +342,7 @@ __declspec(dllexport) int VLDResolveCallstacks();
 #define VLDGetReportFilename(a)
 #define VLDSetOptions(a, b, c)
 #define VLDSetReportHook(a, b) (-1) 
-#define VLDSetModulesList(a)
+#define VLDSetModulesList(a, b)
 #define VLDGetModulesList(a, b) (FALSE)
 #define VLDSetReportOptions(a, b)
 #define VLDResolveCallstacks() (0)
