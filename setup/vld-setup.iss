@@ -11,7 +11,7 @@
 ; NOTE: The value of AppId uniquely identifies this application.
 ; Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible arm64
 AppId={{851FBFF7-5148-40A2-A654-942BE80F5B90}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
@@ -46,12 +46,17 @@ Source: "dbghelp\x64\dbghelp.dll"; DestDir: "{app}\bin\Win64"; Flags: ignorevers
 Source: "dbghelp\x64\Microsoft.Windows.DebuggersAndTools.manifest"; DestDir: "{app}\bin\Win64"; Flags: ignoreversion
 Source: "dbghelp\x86\dbghelp.dll"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
 Source: "dbghelp\x86\Microsoft.Windows.DebuggersAndTools.manifest"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
+Source: "dbghelp\arm64\dbghelp.dll"; DestDir: "{app}\bin\ARM64"; Flags: ignoreversion
+Source: "dbghelp\arm64\Microsoft.Windows.DebuggersAndTools.manifest"; DestDir: "{app}\bin\ARM64"; Flags: ignoreversion
 Source: "..\src\bin\Win32\Release-v143\vld.lib"; DestDir: "{app}\lib\Win32"; Flags: ignoreversion
 Source: "..\src\bin\Win32\Release-v143\vld_x86.dll"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
 Source: "..\src\bin\Win32\Release-v143\vld_x86.pdb"; DestDir: "{app}\bin\Win32"; Flags: ignoreversion
 Source: "..\src\bin\x64\Release-v143\vld.lib"; DestDir: "{app}\lib\Win64"; Flags: ignoreversion
 Source: "..\src\bin\x64\Release-v143\vld_x64.dll"; DestDir: "{app}\bin\Win64"; Flags: ignoreversion
 Source: "..\src\bin\x64\Release-v143\vld_x64.pdb"; DestDir: "{app}\bin\Win64"; Flags: ignoreversion
+Source: "..\src\bin\ARM64\Release-v143\vld.lib"; DestDir: "{app}\lib\ARM64"; Flags: ignoreversion
+Source: "..\src\bin\ARM64\Release-v143\vld_arm64.dll"; DestDir: "{app}\bin\ARM64"; Flags: ignoreversion
+Source: "..\src\bin\ARM64\Release-v143\vld_arm64.pdb"; DestDir: "{app}\bin\ARM64"; Flags: ignoreversion
 Source: "..\src\vld.h"; DestDir: "{app}\include"; Flags: ignoreversion
 Source: "..\src\vld_def.h"; DestDir: "{app}\include"; Flags: ignoreversion
 Source: "..\vld.ini"; DestDir: "{app}"; Flags: ignoreversion
@@ -84,9 +89,10 @@ const
 
 function ModPathDir(): TArrayOfString;
 begin
-    setArrayLength(Result, 2);
+    setArrayLength(Result, 3);
     Result[0] := ExpandConstant('{app}\bin\Win32');
     Result[1] := ExpandConstant('{app}\bin\Win64');
+    Result[2] := ExpandConstant('{app}\bin\ARM64');
 end;
 
 #include "modpath.iss"
@@ -276,6 +282,7 @@ begin
   begin
     ModifyProps(Path + 'Microsoft.Cpp.Win32.user.props', 'Win32');
     ModifyProps(Path + 'Microsoft.Cpp.x64.user.props', 'Win64');
+    ModifyProps(Path + 'Microsoft.Cpp.ARM64.user.props', 'ARM64');
   end;
 end;
 

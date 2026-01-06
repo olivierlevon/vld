@@ -772,7 +772,7 @@ VOID SafeCallStack::getStackTrace (UINT32 maxdepth, const context_t& context)
     count++;
     push_back(context.IPREG);
 
-    DWORD   architecture   = X86X64ARCHITECTURE;
+    DWORD   architecture   = VLDARCHITECTURE;
 
     // Get the required values for initialization of the STACKFRAME64 structure
     // to be passed to StackWalk64(). Required fields are AddrPC and AddrFrame.

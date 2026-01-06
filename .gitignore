@@ -5,6 +5,9 @@ Release/
 Release (Unicode)/
 Win32/
 x64/
+ARM64/
+.vs/
+src/bin/
 *.vcxproj.user
 *.*sdf
 *.suo

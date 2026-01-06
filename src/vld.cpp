@@ -123,17 +123,32 @@ PBYTE NtDllFindParamAddress(const PBYTE pAddress)
     // Test previous 32 bytes to find the begining address we need to patch
     // for 32bit find => push [ebp][14h] => parameters are pushed to stack
     // for 64bit find => mov r8,... => parameters are moved to registers r8, edx, rcx
+    // for ARM64 find => mov x3,... => parameters are moved to registers x0-x7
     while (pAddress - --ptr < 0x20) {
-#ifdef _WIN64
-        if (((ptr[0] & 0x4D) >= 0x4C) && (ptr[1] == 0x8B) && ((ptr[2] & 0xC7) == ptr[2])) {
-#else
-        if ((ptr[0] == 0xFF) && (ptr[1] == 0x75) && (ptr[2] == 0x14)) {
-#endif
+#if defined(_M_ARM64)
+        // ARM64: Look for MOV Xd, Xn instruction (0xAA0003E0 | Rm<<16 | Rd)
+        // or LDR Xd, [Xn, #imm] for loading parameters
+        DWORD instr = *(DWORD*)ptr;
+        // MOV (register): 10101010000mmmmm00000011111ddddd
+        if ((instr & 0xFFE0FFE0) == 0xAA0003E0) {
             return ptr;
         }
+        // LDR (immediate): 11111001 01iiiiii iiiiiinn nnntttt
+        if ((instr & 0xFFC00000) == 0xF9400000) {
+            return ptr;
         }
-    return NULL;
+#elif defined(_WIN64)
+        if (((ptr[0] & 0x4D) >= 0x4C) && (ptr[1] == 0x8B) && ((ptr[2] & 0xC7) == ptr[2])) {
+            return ptr;
+        }
+#else
+        if ((ptr[0] == 0xFF) && (ptr[1] == 0x75) && (ptr[2] == 0x14)) {
+            return ptr;
+        }
+#endif
     }
+    return NULL;
+}
 
 PBYTE NtDllFindCallAddress(const PBYTE pAddress)
 {
@@ -141,20 +156,29 @@ PBYTE NtDllFindCallAddress(const PBYTE pAddress)
     // Test previous 32 bytes to find the begining address we need to patch
     // for 32bit find => call [ebp][08h]
     // for 64bit find => call <register>
+    // for ARM64 find => BLR Xn (branch with link to register)
     while (pAddress - --ptr < 0x20) {
-#ifdef _WIN64
+#if defined(_M_ARM64)
+        // ARM64: BLR Xn: 11010110 00111111 00000000 000nnnnn (0xD63F0000 | Rn<<5)
+        DWORD instr = *(DWORD*)ptr;
+        if ((instr & 0xFFFFFC1F) == 0xD63F0000) {
+            return ptr;
+        }
+#elif defined(_WIN64)
         if ((ptr[0] == 0xFF) && ((ptr[1] & 0xD7) == ptr[1])) {
             if ((*(ptr - 1) & 0x41) == *(ptr - 1)) {
                 --ptr;
             }
-#else
-        if ((ptr[0] == 0xFF) && (ptr[1] == 0x55) && (ptr[2] == 0x08)) {
-#endif
             return ptr;
         }
+#else
+        if ((ptr[0] == 0xFF) && (ptr[1] == 0x55) && (ptr[2] == 0x08)) {
+            return ptr;
         }
-    return NULL;
+#endif
     }
+    return NULL;
+}
 
 typedef struct _NTDLL_LDR_PATCH {
     PBYTE pPatchAddress;
@@ -171,7 +195,16 @@ NTDLL_LDR_PATCH patch;
 BOOL NtDllPatch(const PBYTE pReturnAddress, NTDLL_LDR_PATCH &NtDllPatch)
 {
     if (NtDllPatch.bState == FALSE) {
-#ifdef _WIN64
+#if defined(_M_ARM64)
+        // ARM64 instruction sequences
+        // MOV X3, Xn: 10101010 000nnnnn 00000011 11100011
+        BYTE ptr[] = { 0xE3, 0x03, '?', 0xAA };                              // mov x3, x?
+        // LDR X16, [PC, #imm] + address
+        BYTE mov[] = { 0x50, 0x00, 0x00, 0x58,                               // ldr x16, #8 (load from PC+8)
+                       '?', '?', '?', '?', '?', '?', '?', '?' };             // 64-bit address
+        BYTE call[] = { 0x00, 0x02, 0x3F, 0xD6 };                            // blr x16
+        BYTE jmp[] = { '?', '?', '?', 0x14 };                                // b offset (26-bit signed)
+#elif defined(_WIN64)
         BYTE ptr[] = { '?', 0x8B, '?' };                                     // mov r9, r..
         BYTE mov[] = { 0x48, 0xB8, '?', '?', '?', '?', '?', '?', '?', '?' }; // mov rax, 0x0000000000000000
         BYTE call[] = { 0xFF, 0xD0 };                                        // call rax
@@ -180,14 +213,23 @@ BOOL NtDllPatch(const PBYTE pReturnAddress, NTDLL_LDR_PATCH &NtDllPatch)
         BYTE mov[] = { 0x90, 0xB8, '?', '?', '?', '?' };                     // mov eax, 0x00000000
         BYTE call[] = { 0xFF, 0xD0 };                                        // call eax
 #endif
+#if defined(_M_ARM64)
+        BYTE jmpBack[] = { '?', '?', '?', 0x14 };                            // b offset
+#else
         BYTE jmp[] = { 0xE9, '?', '?', '?', '?' };                           // jmp 0x00000000
+#endif
 
         NtDllPatch.pPatchAddress = NtDllFindParamAddress(pReturnAddress);
         PBYTE pCallAddress = NtDllFindCallAddress(pReturnAddress);
         NtDllPatch.nPatchSize = pReturnAddress - NtDllPatch.pPatchAddress;
         SIZE_T nParamSize = pCallAddress - NtDllPatch.pPatchAddress;
 
+#if defined(_M_ARM64)
+        // ARM64 detour layout: params + MOV + LDR + B(skip) + addr(8) + BLR + B(back)
+        NtDllPatch.nDetourSize = nParamSize + 4 + 4 + 4 + 8 + 4 + 4;  // nParamSize + 28
+#else
         NtDllPatch.nDetourSize = _countof(ptr) + nParamSize + _countof(mov) + _countof(jmp);
+#endif
         NtDllPatch.pDetourAddress = NtDllFindDetourAddress(pReturnAddress, NtDllPatch.nDetourSize);
 
         if (NtDllPatch.pPatchAddress && NtDllPatch.pDetourAddress && ((_countof(jmp) + _countof(call)) <= NtDllPatch.nPatchSize)) {
@@ -195,8 +237,87 @@ BOOL NtDllPatch(const PBYTE pReturnAddress, NTDLL_LDR_PATCH &NtDllPatch)
 
             DWORD dwProtect = 0;
             if (VirtualProtect(NtDllPatch.pDetourAddress, NtDllPatch.nDetourSize, PAGE_EXECUTE_READWRITE, &dwProtect)) {
+#if defined(_M_ARM64)
+                // Fill with ARM64 NOP instructions (0xD503201F)
+                for (SIZE_T i = 0; i < NtDllPatch.nDetourSize; i += 4) {
+                    *(DWORD*)(NtDllPatch.pDetourAddress + i) = 0xD503201F;
+                }
+
+                // Copy original param instructions (must be 4-byte aligned for ARM64)
+                memcpy(NtDllPatch.pDetourAddress, NtDllPatch.pPatchAddress, nParamSize);
+
+                // Find the register that holds the EntryPoint by examining the BLR instruction
+                // BLR Xn: 11010110 00111111 00000000 000nnnnn (0xD63F0000 | Rn<<5)
+                DWORD blrInstr = *(DWORD*)pCallAddress;
+                BYTE reg = (blrInstr >> 5) & 0x1F;  // Extract Rn from BLR instruction
+
+                // ARM64 Detour layout:
+                // [0..nParamSize-1]:              original param instructions
+                // [nParamSize+0..nParamSize+3]:   MOV X3, Xn (copy EntryPoint to 4th param)
+                // [nParamSize+4..nParamSize+7]:   LDR X16, #8 (load address from PC+8)
+                // [nParamSize+8..nParamSize+11]:  B #12 (skip the embedded address)
+                // [nParamSize+12..nParamSize+19]: 64-bit address of LdrpCallInitRoutine
+                // [nParamSize+20..nParamSize+23]: BLR X16 (call LdrpCallInitRoutine)
+                // [nParamSize+24..nParamSize+27]: B back to original code
+
+                SIZE_T detourOffset = nParamSize;
+
+                // MOV X3, Xn: 10101010 000nnnnn 00000011 11100011 (0xAA0003E3 | Rn<<16)
+                DWORD movInstr = 0xAA0003E3 | (reg << 16);
+                *(DWORD*)(NtDllPatch.pDetourAddress + detourOffset) = movInstr;
+                detourOffset += 4;
+
+                // LDR X16, #8 - load from PC+8 (address is 8 bytes after this instruction)
+                // imm19 = 8/4 = 2
+                *(DWORD*)(NtDllPatch.pDetourAddress + detourOffset) = 0x58000050;  // LDR X16, #8
+                detourOffset += 4;
+
+                // B #12 - skip the embedded address (jump 3 instructions = 12 bytes to land on BLR)
+                // imm26 = 12/4 = 3
+                *(DWORD*)(NtDllPatch.pDetourAddress + detourOffset) = 0x14000003;  // B #12
+                detourOffset += 4;
+
+                // 64-bit address of LdrpCallInitRoutine
+                *(PSIZE_T)(NtDllPatch.pDetourAddress + detourOffset) = (SIZE_T)LdrpCallInitRoutine;
+                detourOffset += 8;
+
+                // BLR X16
+                *(DWORD*)(NtDllPatch.pDetourAddress + detourOffset) = 0xD63F0200;  // BLR X16
+                detourOffset += 4;
+
+                // B back to original code (after the call instruction)
+                // Calculate offset: target - current = (pReturnAddress) - (pDetourAddress + detourOffset)
+                INT64 backOffset = (INT64)(pReturnAddress - (NtDllPatch.pDetourAddress + detourOffset));
+                INT32 imm26 = (INT32)(backOffset / 4) & 0x03FFFFFF;
+                *(DWORD*)(NtDllPatch.pDetourAddress + detourOffset) = 0x14000000 | imm26;
+
+                VirtualProtect(NtDllPatch.pDetourAddress, NtDllPatch.nDetourSize, dwProtect, &dwProtect);
+
+                if (VirtualProtect(NtDllPatch.pPatchAddress, NtDllPatch.nPatchSize, PAGE_EXECUTE_READWRITE, &dwProtect)) {
+                    // Fill with ARM64 NOP instructions
+                    for (SIZE_T i = 0; i < NtDllPatch.nPatchSize; i += 4) {
+                        *(DWORD*)(NtDllPatch.pPatchAddress + i) = 0xD503201F;
+                    }
+
+                    // Calculate where to place the jump and call in the original code
+                    // We need: B to detour, then the original BLR is replaced
+                    PBYTE pJmpLocation = pReturnAddress - _countof(call) - _countof(jmp);
+
+                    // B to detour address
+                    INT64 fwdOffset = (INT64)(NtDllPatch.pDetourAddress - pJmpLocation);
+                    INT32 fwdImm26 = (INT32)(fwdOffset / 4) & 0x03FFFFFF;
+                    *(DWORD*)pJmpLocation = 0x14000000 | fwdImm26;
+
+                    // BLR X16 at original call location (this will be skipped, but kept for safety)
+                    *(DWORD*)(pReturnAddress - _countof(call)) = 0xD63F0200;
+
+                    VirtualProtect(NtDllPatch.pPatchAddress, NtDllPatch.nPatchSize, dwProtect, &dwProtect);
+
+                    NtDllPatch.bState = TRUE;
+                }
+#elif defined(_M_X64)
                 memset(NtDllPatch.pDetourAddress, 0x90, NtDllPatch.nDetourSize);
-#ifdef _WIN64
+
                 // Copy original param instructions
                 memcpy(NtDllPatch.pDetourAddress, NtDllPatch.pPatchAddress, nParamSize);
 
@@ -221,13 +342,8 @@ BOOL NtDllPatch(const PBYTE pReturnAddress, NTDLL_LDR_PATCH &NtDllPatch)
                 ptr[0] = 0x4C + ((reg & 0x08) ? 0x01 : 0x00);
                 ptr[2] = 0xC8 + (reg & 0x07);
                 memcpy(&NtDllPatch.pDetourAddress[nParamSize], &ptr, _countof(ptr));
-#else
-                // Push EntryPoint as last parameter
-                memcpy(&NtDllPatch.pDetourAddress[0], &ptr, _countof(ptr));
-                // Copy original param instructions
-                memcpy(&NtDllPatch.pDetourAddress[_countof(ptr)], NtDllPatch.pPatchAddress, nParamSize);
-#endif
-                // Move LdrpCallInitRoutine to eax/rax
+
+                // Move LdrpCallInitRoutine to rax
                 *(PSIZE_T)(&mov[2]) = (SIZE_T)LdrpCallInitRoutine;
                 memcpy(&NtDllPatch.pDetourAddress[_countof(ptr) + nParamSize], &mov, _countof(mov));
 
@@ -244,13 +360,46 @@ BOOL NtDllPatch(const PBYTE pReturnAddress, NTDLL_LDR_PATCH &NtDllPatch)
                     *(DWORD*)(&jmp[1]) = (DWORD)(NtDllPatch.pDetourAddress - (pReturnAddress - _countof(call)));
                     memcpy(pReturnAddress - _countof(call) - _countof(jmp), &jmp, _countof(jmp));
 
-                    // Call LdrpCallInitRoutine from eax/rax
+                    // Call LdrpCallInitRoutine from rax
                     memcpy(pReturnAddress - _countof(call), &call, _countof(call));
 
                     VirtualProtect(NtDllPatch.pPatchAddress, NtDllPatch.nPatchSize, dwProtect, &dwProtect);
 
                     NtDllPatch.bState = TRUE;
                 }
+#else
+                memset(NtDllPatch.pDetourAddress, 0x90, NtDllPatch.nDetourSize);
+
+                // Push EntryPoint as last parameter
+                memcpy(&NtDllPatch.pDetourAddress[0], &ptr, _countof(ptr));
+                // Copy original param instructions
+                memcpy(&NtDllPatch.pDetourAddress[_countof(ptr)], NtDllPatch.pPatchAddress, nParamSize);
+
+                // Move LdrpCallInitRoutine to eax
+                *(PSIZE_T)(&mov[2]) = (SIZE_T)LdrpCallInitRoutine;
+                memcpy(&NtDllPatch.pDetourAddress[_countof(ptr) + nParamSize], &mov, _countof(mov));
+
+                // Jump to original function
+                *(DWORD*)(&jmp[1]) = (DWORD)(pReturnAddress - _countof(call) - (NtDllPatch.pDetourAddress + NtDllPatch.nDetourSize));
+                memcpy(&NtDllPatch.pDetourAddress[_countof(ptr) + nParamSize + _countof(mov)], &jmp, _countof(jmp));
+
+                VirtualProtect(NtDllPatch.pDetourAddress, NtDllPatch.nDetourSize, dwProtect, &dwProtect);
+
+                if (VirtualProtect(NtDllPatch.pPatchAddress, NtDllPatch.nPatchSize, PAGE_EXECUTE_READWRITE, &dwProtect)) {
+                    memset(NtDllPatch.pPatchAddress, 0x90, NtDllPatch.nPatchSize);
+
+                    // Jump to detour address
+                    *(DWORD*)(&jmp[1]) = (DWORD)(NtDllPatch.pDetourAddress - (pReturnAddress - _countof(call)));
+                    memcpy(pReturnAddress - _countof(call) - _countof(jmp), &jmp, _countof(jmp));
+
+                    // Call LdrpCallInitRoutine from eax
+                    memcpy(pReturnAddress - _countof(call), &call, _countof(call));
+
+                    VirtualProtect(NtDllPatch.pPatchAddress, NtDllPatch.nPatchSize, dwProtect, &dwProtect);
+
+                    NtDllPatch.bState = TRUE;
+                }
+#endif
             }
         }
     }

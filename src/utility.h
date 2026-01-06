@@ -43,17 +43,25 @@ Applications should never include this header."
 #define BOM             0xFEFF     // Unicode byte-order mark.
 #define MAXREPORTLENGTH 511        // Maximum length, in characters, of "report" messages.
 
-// Architecture-specific definitions for x86 and x64
+// Architecture-specific definitions for x86, x64, and ARM64
 #if defined(_M_IX86)
+#define VLDARCHITECTURE IMAGE_FILE_MACHINE_I386
 #define X86X64ARCHITECTURE IMAGE_FILE_MACHINE_I386
 #define BPREG Ebp
 #define IPREG Eip
 #define SPREG Esp
 #elif defined(_M_X64)
+#define VLDARCHITECTURE IMAGE_FILE_MACHINE_AMD64
 #define X86X64ARCHITECTURE IMAGE_FILE_MACHINE_AMD64
 #define BPREG Rbp
 #define IPREG Rip
 #define SPREG Rsp
+#elif defined(_M_ARM64)
+#define VLDARCHITECTURE IMAGE_FILE_MACHINE_ARM64
+#define BPREG Fp    // X29 - Frame Pointer
+#define IPREG Pc    // Program Counter
+#define SPREG Sp    // Stack Pointer
+#define LRREG Lr    // X30 - Link Register (return address)
 #endif // _M_IX86
 
 struct context_t
@@ -68,6 +76,11 @@ struct context_t
     DWORD64 Rbp;
     DWORD64 Rsp;
     DWORD64 Rip;
+#elif defined(_M_ARM64)
+    DWORD64 Fp;   // X29 - Frame Pointer
+    DWORD64 Sp;   // Stack Pointer
+    DWORD64 Pc;   // Program Counter
+    DWORD64 Lr;   // X30 - Link Register
 #endif // _M_IX86
 };
 
@@ -90,13 +103,23 @@ struct context_t
     context_.returnAddress = (UINT_PTR)_ReturnAddress();                        \
     context_.func = 0;}
 #define GET_RETURN_ADDRESS(context)  (context.returnAddress)
+#elif defined(_M_ARM64)
+#define CAPTURE_CONTEXT()                                                       \
+    context_t context_;                                                         \
+    {CONTEXT _ctx;                                                              \
+    RtlCaptureContext(&_ctx);                                                   \
+    context_.Fp = _ctx.Fp; context_.Sp = _ctx.Sp; context_.Pc = _ctx.Pc;        \
+    context_.Lr = _ctx.Lr;                                                      \
+    context_.returnAddress = (UINT_PTR)_ReturnAddress();                        \
+    context_.func = 0;}
+#define GET_RETURN_ADDRESS(context)  (context.returnAddress)
 #else
 // If you want to retarget Visual Leak Detector to another processor
 // architecture then you'll need to provide an architecture-specific macro to
 // obtain the frame pointer (or other address) which can be used to obtain the
 // return address and stack pointer of the calling frame.
 #error "Visual Leak Detector is not supported on this architecture."
-#endif // _M_IX86 || _M_X64
+#endif // _M_IX86 || _M_X64 || _M_ARM64
 
 // Miscellaneous definitions
 #define R2VA(moduleBase, rva)  (((PBYTE)moduleBase) + rva) // Relative Virtual Address to Virtual Address conversion.

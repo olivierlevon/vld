@@ -56,6 +56,8 @@ devenv /nologo vld.sln %BUILDTYPE% "Release|Win32" /Project vld
 IF %ERRORLEVEL% NEQ 0 GOTO EndBad
 devenv /nologo vld.sln %BUILDTYPE% "Release|x64" /Project vld
 IF %ERRORLEVEL% NEQ 0 GOTO EndBad
+devenv /nologo vld.sln %BUILDTYPE% "Release|ARM64" /Project vld
+IF %ERRORLEVEL% NEQ 0 GOTO EndBad
 
 REM Try Inno Setup 6 first, then fall back to Inno Setup 5
 SET "ISCC="

@@ -434,6 +434,51 @@ LPVOID FindRealCode(LPVOID pCode)
     LPVOID result = pCode;
     if (pCode != NULL)
     {
+#if defined(_M_ARM64)
+        // ARM64 branch instruction handling
+        DWORD instruction = *(DWORD *)pCode;
+
+        // B (unconditional branch): 000101xx xxxxxxxx xxxxxxxx xxxxxxxx
+        if ((instruction & 0xFC000000) == 0x14000000)
+        {
+            // 26-bit signed offset, multiply by 4 for byte offset
+            INT32 offset = (INT32)(instruction & 0x03FFFFFF);
+            if (offset & 0x02000000) // Sign extend
+                offset |= 0xFC000000;
+            pCode = (LPVOID)((ULONG_PTR)pCode + ((INT64)offset * 4));
+            return FindRealCode(pCode);
+        }
+
+        // Check for ADRP + LDR + BR pattern (common for PLT entries)
+        // ADRP Xn, label: 1xx10000 xxxxxxxx xxxxxxxx xxxnnnnn
+        if ((instruction & 0x9F000000) == 0x90000000)
+        {
+            DWORD instr2 = *((DWORD *)pCode + 1);
+            // LDR Xn, [Xm, #imm]: 11111001 01xxxxxx xxxxxxxx xxxxxxxx
+            if ((instr2 & 0xFFC00000) == 0xF9400000)
+            {
+                DWORD instr3 = *((DWORD *)pCode + 2);
+                // BR Xn: 11010110 00011111 00000000 000nnnnn
+                if ((instr3 & 0xFFFFFC1F) == 0xD61F0000)
+                {
+                    // This is a PLT-style indirect branch - compute target address
+                    // ADRP gives page address, LDR loads from offset
+                    LONG immhi = (instruction >> 5) & 0x7FFFF;
+                    LONG immlo = (instruction >> 29) & 0x3;
+                    INT64 imm = ((INT64)(immhi << 2) | immlo) << 12;
+                    if (immhi & 0x40000) // Sign extend
+                        imm |= 0xFFFFFE0000000000LL;
+                    ULONG_PTR page = (ULONG_PTR)pCode & ~0xFFFULL;
+                    ULONG_PTR adrpResult = page + imm;
+
+                    // LDR offset
+                    DWORD ldrImm = ((instr2 >> 10) & 0xFFF) << 3; // Scale by 8 for 64-bit load
+                    pCode = *(LPVOID*)(adrpResult + ldrImm);
+                    return pCode;
+                }
+            }
+        }
+#else
         if (*(WORD *)pCode == 0x25ff) // JMP r/m32
         {
 #ifdef _WIN64
@@ -456,6 +501,7 @@ LPVOID FindRealCode(LPVOID pCode)
             pCode = (LPVOID)(pNextInst + offset);
             return FindRealCode(pCode);
         }
+#endif // _M_ARM64
     }
     return result;
 }

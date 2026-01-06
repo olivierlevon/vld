@@ -1,7 +1,22 @@
-Visual Leak Detector (VLD) Version 2.5.2
+Visual Leak Detector (VLD) Version 2.6.0
 
 
   Change Log / Release Notes
+
+2.6.0 (January 2025)
+----------------------------
+  Enhancements:
+  + ARM64 (AArch64) platform support added.
+  + VS 2019, VS 2022, and VS 2026 support added.
+  + Updated to use vswhere.exe for Visual Studio detection.
+  + Inno Setup 6 compatibility added.
+  + Removed support for older Visual Studio versions (pre-2019).
+
+  Technical Changes:
+  + ARM64 NtDll patching with full detour implementation.
+  + ARM64 branch instruction detection (B, BLR, ADRP+LDR+BR patterns).
+  + ARM64 stack walking support via StackWalk64.
+  + ARM64 dbghelp.dll included from Windows SDK.
 
 2.5.2 (30 January 2018)
 ----------------------------

@@ -8,6 +8,7 @@
     <!--platform-->
     <NumericPlatform Condition="'$(Platform)'=='Win32'">x86</NumericPlatform>
     <NumericPlatform Condition="'$(Platform)'=='x64'">x64</NumericPlatform>
+    <NumericPlatform Condition="'$(Platform)'=='ARM64'">arm64</NumericPlatform>
     <!--vld configuration-->
     <VldConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</VldConfiguration>
     <VldConfiguration Condition="'$(Configuration)' == 'Debug_StaticCrt'">Debug</VldConfiguration>

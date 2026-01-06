@@ -73,9 +73,10 @@ patchentry_t VisualLeakDetector::s_kernel32Patch [] = {
 };
 
 #define ORDINAL(x)          (LPCSTR)x
-#if !defined(_M_X64)
+#if defined(_M_IX86)
 #define ORDINAL2(x86, x64)  (LPCSTR)x86
 #else
+// x64 and ARM64 use the same ordinals
 #define ORDINAL2(x86, x64)  (LPCSTR)x64
 #endif
 

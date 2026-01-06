@@ -9,6 +9,8 @@ Visual C++ provides built-in memory leak detection, but its capabilities are min
 *   Selected modules (DLLs or even the main EXE) can be excluded from leak detection.
 *   Provides complete data dumps (in hex and ASCII) of leaked blocks.
 *   Customizable memory leak report: can be saved to a file or sent to the debugger and can include a variable level of detail.
+*   Supports x86 (Win32), x64, and ARM64 platforms.
+*   Compatible with Visual Studio 2019, 2022, and 2026.
 
 Other after-market leak detectors for Visual C++ are already available. But most of the really popular ones, like Purify and BoundsChecker, are very expensive. A few free alternatives exist, but they're often too intrusive, restrictive, or unreliable. Visual Leak Detector is currently the only freely available memory leak detector for Visual C++ that provides all of the above professional-level features packaged neatly in an easy-to-use library.
 
@@ -24,7 +26,7 @@ We encourage developers who've added their own features, or fixed bugs they've f
 
 * [Source code](https://github.com/KindDragon/vld)
 
-Copyright © 2005-2018 VLD Team
+Copyright © 2005-2026 VLD Team
 
  [1]: https://github.com/KindDragon/vld/wiki
  [2]: https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=N3QTYHP9LH6UY&lc=GB&item_name=Visual%20Leak%20Detector&currency_code=USD&bn=PP%2dDonationsBF%3abtn_donate_SM%2egif%3aNonHosted
